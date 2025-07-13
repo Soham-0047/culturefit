@@ -1,0 +1,511 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CultureSense AI - Neuomorphic + Glassmorphic Design System */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    /* Light Mode Colors - Exact Specification */
+    --background: 0 0% 100%; /* Pure white */
+    --foreground: 215 25% 27%; /* Dark slate */
+    
+    /* Neuomorphic Card System */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 27%;
+    --card-glass: 220 14% 96%;
+    
+    /* Navigation & Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 27%;
+    --nav-glass: 255 255 255 / 0.85;
+    
+    /* Primary: Deep Purple #7C3AED */
+    --primary: 258 90% 66%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 258 100% 75%;
+    --primary-shadow: 258 90% 66% / 0.3;
+    
+    /* Secondary: Soft Teal #2DD4BF */
+    --secondary: 172 82% 64%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-glow: 172 90% 75%;
+    --secondary-shadow: 172 82% 64% / 0.3;
+    
+    /* Accent Colors */
+    --accent-rose: 351 83% 75%; /* #FB7185 */
+    --accent-amber: 43 96% 56%; /* #F59E0B */
+    --accent-purple: 258 90% 66%;
+    --accent: 172 82% 64%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* Neutral System - Cool Grays */
+    --muted: 220 13% 91%; /* #E5E7EB */
+    --muted-foreground: 220 14% 46%; /* #6B7280 */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 258 90% 66%;
+    
+    /* Destructive */
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Glassmorphic Effects */
+    --glass-bg: 255 255 255 / 0.8;
+    --glass-border: 255 255 255 / 0.3;
+    --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    
+    /* Neuomorphic Effects */
+    --neuro-bg: 240 5% 96%;
+    --neuro-shadow-light: 255 255 255 / 0.7;
+    --neuro-shadow-dark: 55 6% 78% / 0.2;
+    --neuro-inset-light: inset 2px 2px 5px hsl(var(--neuro-shadow-dark));
+    --neuro-inset-dark: inset -2px -2px 5px hsl(var(--neuro-shadow-light));
+    
+    /* Enhanced Gradients */
+    --gradient-primary: linear-gradient(135deg, #7C3AED, #2DD4BF);
+    --gradient-hero-bg: linear-gradient(135deg, #4C1D95, #115E59);
+    --gradient-nav: linear-gradient(135deg, 
+      rgba(124, 58, 237, 0.9), 
+      rgba(45, 212, 191, 0.9)
+    );
+    --gradient-glass: linear-gradient(135deg, 
+      rgba(255, 255, 255, 0.1), 
+      rgba(255, 255, 255, 0.05)
+    );
+    --gradient-hero: linear-gradient(135deg, 
+      rgba(124, 58, 237, 0.05), 
+      rgba(45, 212, 191, 0.05),
+      rgba(251, 113, 133, 0.05)
+    );
+    --gradient-neuro: linear-gradient(145deg, 
+      hsl(var(--neuro-bg)), 
+      hsl(240 5% 94%)
+    );
+    
+    /* OAuth Provider Colors */
+    --google-blue: #4285F4;
+    --microsoft-red: #F25022;
+    --github-dark: #181717;
+    --apple-black: #000000;
+    
+    /* Enhanced Shadows & Effects */
+    --shadow-glass: 0 8px 32px rgba(31, 38, 135, 0.37),
+                   inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    --shadow-neuro: 6px 6px 12px hsl(var(--neuro-shadow-dark)),
+                   -6px -6px 12px hsl(var(--neuro-shadow-light));
+    --shadow-neuro-inset: inset 6px 6px 12px hsl(var(--neuro-shadow-dark)),
+                         inset -6px -6px 12px hsl(var(--neuro-shadow-light));
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.04);
+    --shadow-elevation: 0 12px 40px rgba(0, 0, 0, 0.15);
+    --shadow-hover: 0 16px 48px rgba(124, 58, 237, 0.15);
+    
+    /* Animation Variables */
+    --animation-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --animation-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --animation-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    
+    /* Spacing & Sizing */
+    --radius: 1rem;
+    --radius-sm: 0.5rem;
+    --radius-lg: 1.5rem;
+    --radius-xl: 2rem;
+    --radius-pill: 50px;
+  }
+
+  .dark {
+    /* Dark Mode Colors - Dark Slate */
+    --background: 215 25% 12%; /* Dark slate #1E293B */
+    --foreground: 220 20% 92%;
+
+    /* Neuomorphic Card System */
+    --card: 215 25% 14%;
+    --card-foreground: 220 20% 92%;
+    --card-glass: 215 25% 16%;
+
+    /* Navigation & Popover */
+    --popover: 215 25% 14%;
+    --popover-foreground: 220 20% 92%;
+    --nav-glass: 215 25% 12% / 0.85;
+
+    /* Primary: Deep Purple */
+    --primary: 258 90% 66%;
+    --primary-foreground: 220 20% 95%;
+    --primary-glow: 258 100% 75%;
+    --primary-shadow: 258 90% 66% / 0.4;
+
+    /* Secondary: Soft Teal */
+    --secondary: 172 82% 64%;
+    --secondary-foreground: 215 25% 12%;
+    --secondary-glow: 172 90% 75%;
+    --secondary-shadow: 172 82% 64% / 0.4;
+
+    /* Accent Colors */
+    --accent-rose: 351 83% 75%;
+    --accent-amber: 43 96% 56%;
+    --accent-purple: 258 90% 66%;
+    --accent: 172 82% 64%;
+    --accent-foreground: 215 25% 12%;
+
+    /* Neutral System */
+    --muted: 220 20% 20%;
+    --muted-foreground: 220 15% 65%;
+    --border: 220 20% 22%;
+    --input: 220 20% 18%;
+    --ring: 258 90% 66%;
+
+    /* Destructive */
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 220 20% 95%;
+
+    /* Glassmorphic Effects */
+    --glass-bg: 215 25% 12% / 0.7;
+    --glass-border: 220 30% 30% / 0.3;
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+    /* Neuomorphic Effects */
+    --neuro-bg: 215 25% 16%;
+    --neuro-shadow-light: 220 30% 25% / 0.3;
+    --neuro-shadow-dark: 0 0% 0% / 0.4;
+    --neuro-inset-light: inset 2px 2px 5px hsl(var(--neuro-shadow-dark));
+    --neuro-inset-dark: inset -2px -2px 5px hsl(var(--neuro-shadow-light));
+
+    /* Enhanced Gradients */
+    --gradient-primary: linear-gradient(135deg, #7C3AED, #2DD4BF);
+    --gradient-hero-bg: linear-gradient(135deg, #4C1D95, #115E59);
+    --gradient-nav: linear-gradient(135deg, 
+      rgba(124, 58, 237, 0.8), 
+      rgba(45, 212, 191, 0.8)
+    );
+    --gradient-glass: linear-gradient(135deg, 
+      rgba(30, 41, 59, 0.1), 
+      rgba(30, 41, 59, 0.05)
+    );
+    --gradient-hero: linear-gradient(135deg, 
+      rgba(124, 58, 237, 0.1), 
+      rgba(45, 212, 191, 0.1),
+      rgba(251, 113, 133, 0.1)
+    );
+    --gradient-neuro: linear-gradient(145deg, 
+      hsl(var(--neuro-bg)), 
+      hsl(215 25% 14%)
+    );
+    
+    /* OAuth Provider Colors */
+    --google-blue: #4285F4;
+    --microsoft-red: #F25022;
+    --github-dark: #f6f8fa;
+    --apple-black: #ffffff;
+
+    /* Enhanced Shadows & Effects */
+    --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4),
+                   inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    --shadow-neuro: 6px 6px 12px hsl(var(--neuro-shadow-dark)),
+                   -6px -6px 12px hsl(var(--neuro-shadow-light));
+    --shadow-neuro-inset: inset 6px 6px 12px hsl(var(--neuro-shadow-dark)),
+                         inset -6px -6px 12px hsl(var(--neuro-shadow-light));
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.2);
+    --shadow-elevation: 0 12px 40px rgba(0, 0, 0, 0.4);
+    --shadow-hover: 0 16px 48px rgba(124, 58, 237, 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'Poppins', sans-serif;
+    background-image: var(--gradient-hero);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  /* Enhanced Glassmorphic Components */
+  .glass-card {
+    @apply backdrop-blur-md border rounded-2xl transition-all duration-300;
+    background: var(--gradient-glass);
+    border-color: hsl(var(--glass-border));
+    box-shadow: var(--shadow-glass);
+  }
+
+  .glass-card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+  }
+
+  /* Neuomorphic Components */
+  .neuro-card {
+    @apply rounded-2xl transition-all duration-300;
+    background: var(--gradient-neuro);
+    box-shadow: var(--shadow-neuro);
+  }
+
+  .neuro-card:hover {
+    box-shadow: var(--shadow-neuro-inset);
+  }
+
+  .neuro-button {
+    @apply rounded-xl transition-all duration-300;
+    background: var(--gradient-neuro);
+    box-shadow: var(--shadow-neuro);
+  }
+
+  .neuro-button:active {
+    box-shadow: var(--shadow-neuro-inset);
+  }
+
+  /* Enhanced Navigation */
+  .glass-nav {
+    @apply backdrop-blur-xl border-b;
+    background: var(--gradient-nav);
+    border-color: hsl(var(--glass-border));
+    box-shadow: 0 4px 32px rgba(124, 58, 237, 0.1);
+  }
+
+  /* Pill Components */
+  .pill-button {
+    @apply px-6 py-3 rounded-full transition-all duration-300;
+    background: var(--gradient-glass);
+    border: 1px solid hsl(var(--glass-border));
+    backdrop-filter: blur(12px);
+  }
+
+  .pill-button:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-hover);
+  }
+
+  /* Progress Indicators */
+  .progress-circle {
+    @apply relative rounded-full;
+    background: conic-gradient(
+      from 0deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--secondary)) 50%,
+      hsl(var(--accent-rose)) 100%
+    );
+  }
+
+  /* Ripple Effect */
+  .ripple {
+    @apply relative overflow-hidden;
+  }
+
+  .ripple::before {
+    content: '';
+    @apply absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300;
+    background: radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 70%);
+  }
+
+  .ripple:active::before {
+    @apply opacity-100;
+    animation: ripple-effect 0.6s ease-out;
+  }
+
+  /* OAuth Button Styles */
+  .oauth-button {
+    @apply px-6 py-4 rounded-2xl transition-all duration-300 backdrop-blur-md border;
+    box-shadow: var(--shadow-glass);
+  }
+
+  .oauth-button:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: var(--shadow-hover);
+  }
+
+  .oauth-google {
+    background: linear-gradient(135deg, var(--google-blue), rgba(66, 133, 244, 0.8));
+    border-color: var(--google-blue);
+  }
+
+  .oauth-microsoft {
+    background: linear-gradient(135deg, var(--microsoft-red), rgba(242, 80, 34, 0.8));
+    border-color: var(--microsoft-red);
+  }
+
+  .oauth-github {
+    background: linear-gradient(135deg, var(--github-dark), rgba(24, 23, 23, 0.8));
+    border-color: var(--github-dark);
+  }
+
+  .oauth-apple {
+    background: linear-gradient(135deg, var(--apple-black), rgba(0, 0, 0, 0.8));
+    border-color: var(--apple-black);
+  }
+
+  /* Full-screen Hero Background */
+  .hero-glassmorphic {
+    background: var(--gradient-hero-bg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-glassmorphic::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--gradient-glass);
+    backdrop-filter: blur(20px);
+  }
+
+  /* Animation Classes */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+
+  /* Hover Effects */
+  .hover-lift {
+    @apply transition-all duration-300 hover:scale-105 hover:shadow-elevation;
+  }
+
+  .hover-glow {
+    @apply transition-all duration-300;
+  }
+
+  .hover-glow:hover {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.3);
+  }
+
+  /* Gradient Text */
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Status Indicators */
+  .status-online {
+    @apply bg-secondary animate-pulse;
+    box-shadow: 0 0 10px hsl(var(--secondary) / 0.5);
+  }
+
+  .status-processing {
+    @apply bg-accent-amber animate-pulse;
+    box-shadow: 0 0 10px hsl(var(--accent-amber) / 0.5);
+  }
+}
+
+@layer utilities {
+  /* Enhanced Keyframes & Animations */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes glow {
+    0% { box-shadow: 0 0 20px hsl(var(--primary) / 0.3); }
+    100% { box-shadow: 0 0 40px hsl(var(--primary) / 0.6); }
+  }
+
+  @keyframes slideUp {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes scaleIn {
+    0% { transform: scale(0.9); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes ripple-effect {
+    0% { transform: scale(0); opacity: 1; }
+    100% { transform: scale(4); opacity: 0; }
+  }
+
+  @keyframes wave {
+    0%, 100% { transform: scaleY(1); }
+    50% { transform: scaleY(1.5); }
+  }
+
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  @keyframes bounce-gentle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  @keyframes fade-in-up {
+    0% { opacity: 0; transform: translateY(30px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fade-in-scale {
+    0% { opacity: 0; transform: scale(0.8); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  /* Animation Utilities */
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
+
+  .animate-wave {
+    animation: wave 1.5s ease-in-out infinite;
+  }
+
+  .animate-bounce-gentle {
+    animation: bounce-gentle 2s ease-in-out infinite;
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.6s ease-out;
+  }
+
+  .animate-fade-in-scale {
+    animation: fade-in-scale 0.4s ease-out;
+  }
+
+  /* Micro-interaction Utilities */
+  .micro-bounce {
+    @apply transition-transform duration-200 hover:scale-110 active:scale-95;
+  }
+
+  .micro-lift {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
+  }
+
+  .micro-glow {
+    @apply transition-all duration-300;
+  }
+
+  .micro-glow:hover {
+    filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.4));
+  }
+
+  /* Enhanced Hover Effects */
+  .hover-scale-102 {
+    @apply transition-all duration-300 hover:scale-[1.02];
+  }
+
+  /* Scrollbar Hide */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
