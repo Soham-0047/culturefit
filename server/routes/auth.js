@@ -13,7 +13,7 @@ router.get('/google',
 );
 
 router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  passport.authenticate('google', { failureRedirect: '/' }),
   async (req, res) => {
     try {
       // Update user's last login
@@ -23,14 +23,12 @@ router.get('/google/callback',
       });
 
       // Redirect to frontend with success
-      const redirectUrl = process.env.NODE_ENV === 'production' 
-        ? `${process.env.CLIENT_URL}/dashboard?auth=success`
-        : 'http://localhost:3000/dashboard?auth=success';
+      const redirectUrl = `${process.env.FRONTEND_URL}/discover`;
       
       res.redirect(redirectUrl);
     } catch (error) {
       console.error('Auth callback error:', error);
-      res.redirect('/login?error=server_error');
+      res.redirect('/');
     }
   }
 );

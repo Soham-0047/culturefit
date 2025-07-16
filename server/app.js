@@ -72,9 +72,7 @@ app.use(morgan('combined'));
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.CLIENT_URL 
-    : ['http://localhost:3000', 'http://localhost:5173','http://localhost:8080'],
+  origin: ['http://localhost:3000', 'http://localhost:5173','http://localhost:8080'],
   credentials: true,
   optionsSuccessStatus: 200
 }));
@@ -117,7 +115,7 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
-app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/discover', optionalAuth, discoverRoutes);
 app.use('/api/user', requireAuth, userRoutes);
 

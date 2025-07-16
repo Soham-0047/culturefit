@@ -7,26 +7,26 @@ const configureGoogleAuth = () => {
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/auth/google/callback"
+    callbackURL: `${process.env.BACKEND_URL}/api/auth/google/callback`
   }, async (accessToken, refreshToken, profile, done) => {
     try {
       console.log('Google OAuth Profile:', profile);
-      
+
       // Check if user already exists
-      let user = await User.findOne({ 
+      let user = await User.findOne({
         $or: [
           { googleId: profile.id },
           { email: profile.emails[0]?.value }
         ]
       });
-      
+
       if (user) {
         // Update existing user with Google data
         user.googleId = profile.id;
         user.name = profile.displayName;
         user.avatar = profile.photos[0]?.value || user.avatar;
         user.email = profile.emails[0]?.value || user.email;
-        
+
         // Update OAuth tokens
         user.authProviders = user.authProviders || {};
         user.authProviders.google = {
@@ -35,12 +35,12 @@ const configureGoogleAuth = () => {
           refreshToken: refreshToken,
           lastLogin: new Date()
         };
-        
+
         await user.save();
         console.log('Updated existing user:', user.email);
         return done(null, user);
       }
-      
+
       // Create new user
       user = new User({
         googleId: profile.id,
@@ -67,12 +67,15 @@ const configureGoogleAuth = () => {
           recommendations_history: []
         },
         settings: {
-          notifications: true,
-          privacy: 'public',
-          language: 'en'
+          notifications: {
+            email: true,
+            push: true,
+            recommendations: true,
+            trends: true
+          }
         }
       });
-      
+
       await user.save();
       console.log('Created new user:', user.email);
       return done(null, user);
@@ -105,14 +108,14 @@ passport.deserializeUser(async (id, done) => {
 const requireAuth = (req, res, next) => {
   console.log('Auth check - User:', req.user ? req.user.email : 'Not authenticated');
   console.log('Auth check - Session:', req.session ? 'Session exists' : 'No session');
-  
+
   if (req.isAuthenticated()) {
     return next();
   }
-  
-  res.status(401).json({ 
+
+  res.status(401).json({
     error: 'Authentication required',
-    authenticated: false 
+    authenticated: false
   });
 };
 
