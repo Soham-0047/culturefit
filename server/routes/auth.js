@@ -89,42 +89,181 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
-// Update user preferences
-router.put('/preferences', requireAuth, async (req, res) => {
+// GET /api/user/preferences - Get user preferences
+router.get('/preferences', async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Return user preferences based on your schema
+    const preferences = {
+      categories: user.preferences?.categories || [],
+      favoriteGenres: user.preferences?.favoriteGenres || [],
+      culturalTags: user.preferences?.culturalTags || [],
+      moodPreferences: user.preferences?.moodPreferences || [],
+      location: user.preferences?.location || { country: null, city: null, timezone: null }
+    };
+
+    res.json(preferences);
+  } catch (error) {
+    console.error('Error fetching user preferences:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// POST /api/user/preferences - Save user preferences
+router.post('/preferences', async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
     const { preferences } = req.body;
-    
-    // Validate preferences structure
-    if (!preferences || typeof preferences !== 'object') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid preferences format'
+
+    if (!preferences) {
+      return res.status(400).json({ message: 'Preferences are required' });
+    }
+
+    const { categories, favoriteGenres, culturalTags, moodPreferences, location } = preferences;
+
+    // Validate required fields
+    if (!categories || !Array.isArray(categories) || categories.length === 0) {
+      return res.status(400).json({ message: 'At least one category is required' });
+    }
+
+    // Validate categories against enum values
+    const validCategories = ['all', 'film', 'music', 'literature', 'art', 'design'];
+    const invalidCategories = categories.filter(cat => !validCategories.includes(cat));
+    if (invalidCategories.length > 0) {
+      return res.status(400).json({ 
+        message: `Invalid categories: ${invalidCategories.join(', ')}` 
       });
     }
 
+    // Validate mood preferences if provided
+    if (moodPreferences && moodPreferences.length > 0) {
+      const validMoods = ['energetic', 'calm', 'adventurous', 'romantic', 'mysterious', 'uplifting', 'nostalgic', 'experimental'];
+      const invalidMoods = moodPreferences.filter(mood => !validMoods.includes(mood));
+      if (invalidMoods.length > 0) {
+        return res.status(400).json({ 
+          message: `Invalid mood preferences: ${invalidMoods.join(', ')}` 
+        });
+      }
+    }
+
+    // Prepare update object
+    const updateData = {
+      'preferences.categories': categories,
+      'preferences.favoriteGenres': favoriteGenres || [],
+      'preferences.culturalTags': culturalTags || [],
+      'preferences.moodPreferences': moodPreferences || []
+    };
+
+    // Add location if provided
+    if (location) {
+      if (location.country) updateData['preferences.location.country'] = location.country;
+      if (location.city) updateData['preferences.location.city'] = location.city;
+      if (location.timezone) updateData['preferences.location.timezone'] = location.timezone;
+    }
+
+    // Update user preferences
     const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { 
-        preferences: {
-          ...req.user.preferences,
-          ...preferences
-        },
-        updatedAt: new Date()
-      },
+      req.user.id,
+      { $set: updateData },
       { new: true, runValidators: true }
     );
 
-    res.json({
-      success: true,
-      message: 'Preferences updated successfully',
-      preferences: user.preferences
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ 
+      message: 'Preferences saved successfully',
+      preferences: user.preferences 
     });
   } catch (error) {
-    console.error('Preferences update error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update preferences'
+    console.error('Error saving user preferences:', error);
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        errors: validationErrors 
+      });
+    }
+    
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// PUT /api/user/preferences - Update specific preference fields
+router.put('/preferences', async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const updateFields = req.body;
+    const updateData = {};
+
+    // Build update object based on provided fields
+    if (updateFields.categories) {
+      updateData['preferences.categories'] = updateFields.categories;
+    }
+    if (updateFields.favoriteGenres) {
+      updateData['preferences.favoriteGenres'] = updateFields.favoriteGenres;
+    }
+    if (updateFields.culturalTags) {
+      updateData['preferences.culturalTags'] = updateFields.culturalTags;
+    }
+    if (updateFields.moodPreferences) {
+      updateData['preferences.moodPreferences'] = updateFields.moodPreferences;
+    }
+    if (updateFields.location) {
+      if (updateFields.location.country !== undefined) {
+        updateData['preferences.location.country'] = updateFields.location.country;
+      }
+      if (updateFields.location.city !== undefined) {
+        updateData['preferences.location.city'] = updateFields.location.city;
+      }
+      if (updateFields.location.timezone !== undefined) {
+        updateData['preferences.location.timezone'] = updateFields.location.timezone;
+      }
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ 
+      message: 'Preferences updated successfully',
+      preferences: user.preferences 
     });
+  } catch (error) {
+    console.error('Error updating user preferences:', error);
+    
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        errors: validationErrors 
+      });
+    }
+    
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 

@@ -10,14 +10,17 @@ import Discover from "./pages/Discover";
 import Insights from "./pages/Insights";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import { useUserPreferences } from "./hooks/useUserPreferences";
+import UserPreferencesForm from "./components/UserPresencesForm";
 
 const queryClient = new QueryClient();
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loading } = useAuth();
+    const { hasPreferences, loading: preferencesLoading, refetch } = useUserPreferences();
 
-  if (loading) {
+  if (loading || preferencesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -25,13 +28,27 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  return isAuthenticated ? <>{children}</> : <Navigate to="/" replace />;
+   // Show preferences form if user hasn't filled it out yet
+  if (!hasPreferences && isAuthenticated) {
+    console.log(isAuthenticated)
+    return (
+      <UserPreferencesForm 
+        onComplete={() => {
+          // Refetch preferences to update the state
+          refetch();
+        }} 
+      />
+    );
+  }
+
+  // Show the protected content
+  return <>{children}</>;
 };
 
 // Public Route Component (redirects to chat if authenticated)
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loading } = useAuth();
-
+  console.log(isAuthenticated)
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">

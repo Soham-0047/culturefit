@@ -1,31 +1,77 @@
-import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ModeToggle } from "@/components/ModeToggle";
-import { 
-  Bell, 
-  Search, 
-  Settings, 
-  User, 
-  Grid2X2, 
-  MessageSquare, 
-  Heart, 
-  TrendingUp, 
-  Eye 
+import {
+  Bell,
+  Search,
+  Settings,
+  User,
+  Grid2X2,
+  MessageSquare,
+  Heart,
+  TrendingUp,
+  Eye,
 } from "lucide-react";
+import axios from "axios";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 const Navigation = () => {
   const location = useLocation();
   const [hasNotifications, setHasNotifications] = useState(true);
 
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const navigate = useNavigate();
+
+  const handleProfileClick = (e) => {
+    e.preventDefault(); // prevent NavLink from navigating
+    setDropdownOpen((prev) => !prev);
+  };
+
+  const handleLogout = async () => {
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_APP_BACKEND_URL}/auth/logout`,
+        {},
+        { withCredentials: true } // 👈 important for cookie/session support
+      );
+
+      if (response.data.success) {
+        // Clear local state if needed
+        // Redirect to login or home page
+        navigate("/");
+      } else {
+        console.error("Logout failed:", response.data.message);
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const navItems = [
-    { path: "/", label: "Dashboard", icon: Grid2X2 },
     { path: "/chat", label: "AI Chat", icon: MessageSquare },
     { path: "/discover", label: "Discover", icon: Heart },
     { path: "/insights", label: "Insights", icon: TrendingUp },
-    { path: "/profile", label: "Profile", icon: User }
+    { path: "/profile", label: "Profile", icon: User },
   ];
 
   const isActive = (path: string) => {
@@ -54,7 +100,7 @@ const Navigation = () => {
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
-                <NavLink
+              <NavLink
                 key={item.path}
                 to={item.path}
                 className={`flex items-center space-x-3 px-5 py-3 rounded-xl transition-all duration-300 ${
@@ -91,20 +137,33 @@ const Navigation = () => {
 
           {/* Settings */}
           <ModeToggle />
-          
+
           {/* <Button variant="glass" size="sm">
             <Settings className="w-4 h-4" />
           </Button> */}
 
           {/* Profile */}
-          <div className="flex items-center space-x-2">
-            <Avatar className="w-8 h-8 border-2 border-primary/30">
-              <AvatarImage src="/placeholder.svg" />
-              <AvatarFallback className="bg-gradient-primary text-white">
-                CS
-              </AvatarFallback>
-            </Avatar>
-            <div className="status-online w-3 h-3 rounded-full absolute ml-6 -mt-2"></div>
+          <div className="relative" ref={dropdownRef}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="glass" size="sm" className="relative">
+                  <Avatar className="w-8 h-8 border-2 border-primary/30 cursor-pointer">
+                    <AvatarImage src="/placeholder.svg" />
+                    <AvatarFallback className="bg-gradient-primary text-white">
+                      CS
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="glass-card border-0">
+                <DropdownMenuItem onClick={() => navigate("/profile")}>
+                  My Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout}>
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

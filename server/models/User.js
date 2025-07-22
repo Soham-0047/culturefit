@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
-  // Authentication fields
+  // Your existing authentication fields (keep all of them)
   googleId: {
     type: String,
     unique: true,
@@ -18,7 +18,6 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     minlength: 6,
-    // Required only if no OAuth provider
     required: function() {
       return !this.googleId;
     }
@@ -38,7 +37,7 @@ const userSchema = new mongoose.Schema({
     default: 'user'
   },
   
-  // OAuth provider data
+  // OAuth provider data (keep your existing structure)
   authProviders: {
     google: {
       id: String,
@@ -46,7 +45,6 @@ const userSchema = new mongoose.Schema({
       refreshToken: String,
       lastLogin: Date
     },
-    // Future providers can be added here
     microsoft: {
       id: String,
       accessToken: String,
@@ -67,7 +65,7 @@ const userSchema = new mongoose.Schema({
     }
   },
   
-  // User preferences
+  // KEEP your existing preferences structure but ADD these new fields:
   preferences: {
     categories: [{
       type: String,
@@ -91,208 +89,155 @@ const userSchema = new mongoose.Schema({
       country: String,
       city: String,
       timezone: String
-    }
-  },
-  
-  // Taste profile and AI data
-  tasteProfile: {
-    compatibility_score: {
-      type: Number,
-      min: 0,
-      max: 10,
-      default: 0
     },
-    cultural_evolution: [{
-      date: {
-        type: Date,
-        default: Date.now
-      },
-      preferences: [String],
-      score: {
-        type: Number,
-        min: 0,
-        max: 10
-      },
-      insights: String
-    }],
-    recommendations_history: [{
-      item_id: String,
-      title: String,
-      category: String,
-      type: String,
-      rating: {
-        type: Number,
-        min: 1,
-        max: 5
-      },
-      interaction_type: {
-        type: String,
-        enum: ['viewed', 'liked', 'disliked', 'saved', 'shared', 'rated', 'commented'],
-        required: true
-      },
-      timestamp: {
-        type: Date,
-        default: Date.now
-      },
-      source: {
-        type: String,
-        enum: ['qloo', 'manual', 'imported'],
-        default: 'qloo'
-      },
-      metadata: {
-        external_ids: {
-          imdb: String,
-          spotify: String,
-          goodreads: String
-        },
-        tags: [String],
-        mood: String,
-        context: String
-      }
-    }],
-    mood_analytics: {
-      current_mood: {
-        type: String,
-        enum: ['happy', 'sad', 'energetic', 'calm', 'adventurous', 'romantic', 'nostalgic', 'experimental'],
-        default: 'calm'
-      },
-      mood_history: [{
-        mood: String,
-        date: Date,
-        triggers: [String],
-        recommendations_given: Number
-      }],
-      personality_traits: {
-        openness: { type: Number, min: 0, max: 10, default: 5 },
-        conscientiousness: { type: Number, min: 0, max: 10, default: 5 },
-        extraversion: { type: Number, min: 0, max: 10, default: 5 },
-        agreeableness: { type: Number, min: 0, max: 10, default: 5 },
-        neuroticism: { type: Number, min: 0, max: 10, default: 5 }
-      }
-    }
-  },
-  
-  // App settings
-  settings: {
+    // ADD THESE NEW PREFERENCE FIELDS for your frontend:
     notifications: {
-      email: {
-        type: Boolean,
-        default: true
-      },
-      push: {
-        type: Boolean,
-        default: true
-      },
-      recommendations: {
-        type: Boolean,
-        default: true
-      },
-      trends: {
-        type: Boolean,
-        default: true
-      }
-    },
-    privacy: {
-      type: String,
-      enum: ['public', 'private', 'friends'],
-      default: 'public'
-    },
-    language: {
-      type: String,
-      default: 'en'
-    },
-    theme: {
-      type: String,
-      enum: ['light', 'dark', 'auto'],
-      default: 'auto'
-    },
-    data_sharing: {
-      analytics: {
-        type: Boolean,
-        default: true
-      },
-      recommendations: {
-        type: Boolean,
-        default: true
-      },
-      research: {
-        type: Boolean,
-        default: false
-      }
-    }
-  },
-  
-  // Social features
-  social: {
-    friends: [{
-      userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-      },
-      status: {
-        type: String,
-        enum: ['pending', 'accepted', 'blocked'],
-        default: 'pending'
-      },
-      connectedAt: {
-        type: Date,
-        default: Date.now
-      }
-    }],
-    followers: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }],
-    following: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    }],
-    public_lists: [{
-      name: String,
-      description: String,
-      items: [String],
-      category: String,
-      createdAt: {
-        type: Date,
-        default: Date.now
-      }
-    }]
-  },
-  
-  // Account status
-  status: {
-    isActive: {
       type: Boolean,
       default: true
     },
-    isVerified: {
+    publicProfile: {
       type: Boolean,
       default: false
     },
-    lastLogin: {
-      type: Date,
-      default: Date.now
-    },
-    loginCount: {
+    aiInsights: {
+      type: Boolean,
+      default: true
+    }
+  },
+
+  // ADD THESE NEW FIELDS to match your frontend expectations:
+  
+  // Profile fields
+  bio: {
+    type: String,
+    default: "AI-powered cultural analyst with a passion for discovering emerging trends"
+  },
+  tier: {
+    type: String,
+    enum: ['Guest', 'Explorer', 'Curator', 'Expert'],
+    default: 'Explorer'
+  },
+  picture: {
+    type: String,
+    default: ''
+  },
+  
+  // Cultural profile for taste analysis
+  culturalProfile: {
+    visualArts: {
       type: Number,
-      default: 0
+      default: 0,
+      min: 0,
+      max: 100
     },
-    subscription: {
-      type: String,
-      enum: ['free', 'premium', 'enterprise'],
-      default: 'free'
+    music: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100
+    },
+    film: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100
+    },
+    literature: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100
+    },
+    design: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100
+    },
+    fashion: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100
     }
   },
   
-  // Timestamps
-  createdAt: {
+  // User activity tracking
+  profileViews: {
+    type: Number,
+    default: 0
+  },
+  lastLogin: {
     type: Date,
     default: Date.now
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
+  loginCount: {
+    type: Number,
+    default: 0
+  },
+  
+  // Recommendations history
+  recommendations: [{
+    title: {
+      type: String,
+      required: true
+    },
+    description: String,
+    category: {
+      type: String,
+      required: true
+    },
+    rating: {
+      type: Number,
+      min: 0,
+      max: 5,
+      default: 0
+    },
+    image: String,
+    tags: [String],
+    source: String,
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  // Favorites list
+  favorites: [{
+    title: {
+      type: String,
+      required: true
+    },
+    description: String,
+    category: String,
+    itemType: String,
+    rating: Number,
+    image: String,
+    url: String,
+    tags: [String],
+    addedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  // Conversation history (for analytics)
+  conversationHistory: [{
+    sessionId: String,
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    messageCount: {
+      type: Number,
+      default: 1
+    }
+  }]
+  
 }, {
   timestamps: true, // Automatically handle createdAt and updatedAt
   toJSON: { virtuals: true },

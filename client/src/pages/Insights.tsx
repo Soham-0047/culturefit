@@ -182,7 +182,7 @@ const Insights = () => {
 
           {/* Main Analytics */}
           <Tabs defaultValue="breakdown" className="space-y-8">
-            <div className="flex justify-center">
+            <div className="flex justify-center overflow-x-auto overflow-y-hidden">
               <TabsList className="glass-card p-2 bg-white/5 border-primary/20 rounded-2xl backdrop-blur-xl">
                 <TabsTrigger 
                   value="breakdown" 
