@@ -18,6 +18,7 @@ const User = require('./models/User');
 const discoverRoutes = require('./routes/discover');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
+const chatRoutes = require('./routes/chat');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -118,6 +119,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/discover', optionalAuth, discoverRoutes);
 app.use('/api/user', requireAuth, userRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

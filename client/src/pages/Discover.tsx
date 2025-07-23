@@ -15,89 +15,104 @@ const Discover = () => {
   const [trendingDiscoveries, setTrendingDiscoveries] = useState([]);
   const [personalizedDiscoveries, setPersonalizedDiscoveries] = useState([]);
   const [stats, setStats] = useState({
-    averageRating: 4.8,
-    totalItems: 847,
-    trendingCount: 23,
-    categories: 156
+    averageRating: 0,
+    totalDiscoveries: 0,
+    trending: 0,
+    categoriesTotal: 0,
+    recentlyAdded: 0
   });
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [loadMoreLoading, setLoadMoreLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreData, setHasMoreData] = useState(true);
+  const ITEMS_PER_PAGE = 20;
 
   // Backend API base URL
   const API_BASE_URL = import.meta.env.VITE_APP_BACKEND_URL;
-
-  const categories = [
-    {
-      id: "all",
-      label: "All Categories",
-      count: 847,
-      type: "all",
-      defaultTag: null,
-    },
-    {
-      id: "film",
-      label: "Film & Cinema",
-      count: 156,
-      type: "movie",
-      defaultTag: "minimalist",
-    },
-    {
-      id: "music",
-      label: "Music",
-      count: 234,
-      type: "music",
-      defaultTag: "soulful",
-    },
-    {
-      id: "literature",
-      label: "Literature",
-      count: 89,
-      type: "book",
-      defaultTag: "nonfiction",
-    },
-    {
-      id: "art",
-      label: "Visual Arts",
-      count: 145,
-      type: "art",
-      defaultTag: "contemporary",
-    },
-    {
-      id: "design",
-      label: "Design",
-      count: 223,
-      type: "design",
-      defaultTag: "sustainable",
-    },
-  ];
 
   // Fetch discovery stats
   const fetchStats = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/discover/stats`);
       if (response.data.success) {
+        const statsData = response.data.stats;
+        
+        // Calculate total categories from categories object
+        const categoriesTotal = statsData.categories 
+          ? Object.keys(statsData.categories).length 
+          : 0;
+
         setStats({
-          averageRating: response.data.data.averageRating || 4.8,
-          totalItems: response.data.data.totalItems || 847,
-          trendingCount: response.data.data.trendingCount || 23,
-          categories: response.data.data.categories || 156
+          averageRating: statsData.averageRating || 0,
+          totalDiscoveries: statsData.totalDiscoveries || 0,
+          trending: statsData.trending || 0,
+          categoriesTotal: categoriesTotal,
+          recentlyAdded: statsData.recentlyAdded || 0
         });
+
+        // Build categories array from backend data
+        if (statsData.categories) {
+          const categoriesArray = [
+            {
+              id: "all",
+              label: "All Categories",
+              count: statsData.totalDiscoveries || 0,
+              type: "all",
+              defaultTag: null,
+            },
+            ...Object.entries(statsData.categories).map(([key, count]) => ({
+              id: key,
+              label: key.charAt(0).toUpperCase() + key.slice(1),
+              count: count,
+              type: key,
+              defaultTag: getDefaultTagForCategory(key),
+            }))
+          ];
+          setCategories(categoriesArray);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch stats:", err);
     }
   };
 
+  // Helper function to get default tags for categories
+  const getDefaultTagForCategory = (category) => {
+    const tagMap = {
+      film: "minimalist",
+      music: "soulful", 
+      literature: "nonfiction",
+      art: "contemporary",
+      design: "sustainable"
+    };
+    return tagMap[category] || null;
+  };
+
   // Fetch trending discoveries
-  const fetchTrendingDiscoveries = async () => {
+  const fetchTrendingDiscoveries = async (categoryId, append = false) => {
     try {
-      const params = activeCategory !== "all" ? { type: categories.find(cat => cat.id === activeCategory)?.type } : {};
-      const response = await axios.get(`${API_BASE_URL}/discover/trending`, { params });
+      const category = categories.find(cat => cat.id === categoryId);
+      const params = { 
+        ...(categoryId !== "all" ? { type: category?.type } : {}),
+        page: append ? Math.ceil(trendingDiscoveries.length / ITEMS_PER_PAGE) + 1 : 1,
+        limit: ITEMS_PER_PAGE
+      };
       
+      const response = await axios.get(`${API_BASE_URL}/discover/trending`, { params });
+
       if (response.data.success) {
-        const formattedTrending = response.data.data.map(formatDiscoveryItem);
-        setTrendingDiscoveries(formattedTrending);
+        const formattedTrending = response.data.trending.map(formatDiscoveryItem);
+        if (append) {
+          setTrendingDiscoveries(prev => [...prev, ...formattedTrending]);
+        } else {
+          setTrendingDiscoveries(formattedTrending);
+        }
+        
+        // Check if there's more data
+        setHasMoreData(formattedTrending.length === ITEMS_PER_PAGE);
       }
     } catch (err) {
       console.error("Failed to fetch trending discoveries:", err);
@@ -105,32 +120,54 @@ const Discover = () => {
   };
 
   // Fetch personalized discoveries
-  const fetchPersonalizedDiscoveries = async () => {
+  const fetchPersonalizedDiscoveries = async (categoryId, append = false) => {
     try {
-      const params = activeCategory !== "all" ? { type: categories.find(cat => cat.id === activeCategory)?.type } : {};
-      const response = await axios.get(`${API_BASE_URL}/discover/personalized`, { 
+      const category = categories.find(cat => cat.id === categoryId);
+      const params = { 
+        ...(categoryId !== "all" ? { type: category?.type } : {}),
+        page: append ? Math.ceil(personalizedDiscoveries.length / ITEMS_PER_PAGE) + 1 : 1,
+        limit: ITEMS_PER_PAGE
+      };
+
+      const response = await axios.get(`${API_BASE_URL}/discover/personalized`, {
         params,
         withCredentials: true,
       });
-      
+
       if (response.data.success) {
-        const formattedPersonalized = response.data.data.map(formatDiscoveryItem);
-        setPersonalizedDiscoveries(formattedPersonalized);
+        // Handle the nested structure: response.data.data.recommendations
+        const recommendations = response.data.data?.recommendations || response.data.data || [];
+        const formattedPersonalized = recommendations.map(formatDiscoveryItem);
+        
+        if (append) {
+          setPersonalizedDiscoveries(prev => [...prev, ...formattedPersonalized]);
+        } else {
+          setPersonalizedDiscoveries(formattedPersonalized);
+        }
+        
+        // Check if there's more data
+        if (!append || formattedPersonalized.length < ITEMS_PER_PAGE) {
+          setHasMoreData(formattedPersonalized.length === ITEMS_PER_PAGE);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch personalized discoveries:", err);
-      // If not authenticated, fetch general insights instead
-      fetchInsights();
+      if (!append) {
+        fetchInsights(); // Fallback only for initial load
+      }
     }
   };
 
   // Fetch general insights (fallback)
-  const fetchInsights = async () => {
+  const fetchInsights = async (append = false) => {
     try {
       const selectedCategory = categories.find((cat) => cat.id === activeCategory) || categories[0];
+      if (!selectedCategory) return;
+
       const params = {
         type: selectedCategory.type,
-        limit: 20,
+        limit: ITEMS_PER_PAGE,
+        page: append ? Math.ceil(discoveries.length / ITEMS_PER_PAGE) + 1 : 1,
       };
 
       if (activeCategory !== "all" && selectedCategory.defaultTag) {
@@ -140,8 +177,17 @@ const Discover = () => {
       const response = await axios.get(`${API_BASE_URL}/discover/insights`, { params });
 
       if (response.data.success) {
-        const formattedDiscoveries = response.data.data.map(formatDiscoveryItem);
-        setDiscoveries(formattedDiscoveries);
+        const formattedDiscoveries = response.data.discoveries.map(formatDiscoveryItem);
+        if (append) {
+          setDiscoveries(prev => [...prev, ...formattedDiscoveries]);
+        } else {
+          setDiscoveries(formattedDiscoveries);
+        }
+        
+        // Check if there's more data
+        if (!append || formattedDiscoveries.length < ITEMS_PER_PAGE) {
+          setHasMoreData(formattedDiscoveries.length === ITEMS_PER_PAGE);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch insights:", err);
@@ -150,31 +196,39 @@ const Discover = () => {
   };
 
   // Search discoveries
-  const handleSearch = async (query) => {
+  const handleSearch = async (query, append = false) => {
     if (!query.trim()) {
       setSearchQuery("");
       return;
     }
 
-    setSearchLoading(true);
+    if (!append) setSearchLoading(true);
     try {
       const params = {
         q: query,
         type: activeCategory !== "all" ? categories.find(cat => cat.id === activeCategory)?.type : undefined,
-        limit: 20
+        limit: ITEMS_PER_PAGE,
+        page: append ? Math.ceil(discoveries.length / ITEMS_PER_PAGE) + 1 : 1
       };
 
       const response = await axios.get(`${API_BASE_URL}/discover/search`, { params });
 
       if (response.data.success) {
-        const formattedResults = response.data.data.map(formatDiscoveryItem);
-        setDiscoveries(formattedResults);
+        const formattedResults = response.data.results.map(formatDiscoveryItem);
+        if (append) {
+          setDiscoveries(prev => [...prev, ...formattedResults]);
+        } else {
+          setDiscoveries(formattedResults);
+        }
+        
+        // Check if there's more data
+        setHasMoreData(formattedResults.length === ITEMS_PER_PAGE);
       }
     } catch (err) {
       console.error("Search failed:", err);
       setError(err.response?.data?.message || err.message);
     } finally {
-      setSearchLoading(false);
+      if (!append) setSearchLoading(false);
     }
   };
 
@@ -185,9 +239,9 @@ const Discover = () => {
       title: item.title || item.name || `Discovery ${index + 1}`,
       description: item.description || `Explore this ${item.category || 'cultural item'}.`,
       category: item.category || "Unknown",
-      rating: item.rating || (4.5 + Math.random() * 0.5),
+      rating: parseFloat(item.rating) || item.preferenceScore || (4.5 + Math.random() * 0.5),
       trending: item.trending || item.isTrending || false,
-      image: item.image || item.imageUrl || `https://images.unsplash.com/photo-1489599510096?w=400&h=300&fit=crop`,
+      image: item.image || item.imageUrl || `https://images.unsplash.com/photo-1489599510096-93ee2a83c1bc?w=400&h=300&fit=crop`,
       tags: Array.isArray(item.tags) ? item.tags : ["Curated", "Cultural"],
       website: item.website || item.externalUrl || null,
       releaseYear: item.releaseYear,
@@ -206,16 +260,20 @@ const Discover = () => {
     }
   };
 
-  // Load all data
   const loadAllData = async () => {
     setLoading(true);
     setError(null);
-    
+    setCurrentPage(1);
+    setHasMoreData(true);
+
     try {
+      // First fetch stats to get categories
+      await fetchStats();
+      
+      // Then fetch other data after categories are loaded
       await Promise.allSettled([
-        fetchStats(),
-        fetchTrendingDiscoveries(),
-        fetchPersonalizedDiscoveries(),
+        fetchTrendingDiscoveries(activeCategory, false),
+        fetchPersonalizedDiscoveries(activeCategory, false),
       ]);
     } catch (err) {
       console.error("Failed to load data:", err);
@@ -224,16 +282,43 @@ const Discover = () => {
     }
   };
 
+  // Load more data function
+  const loadMoreData = async () => {
+    if (loadMoreLoading || !hasMoreData) return;
+
+    setLoadMoreLoading(true);
+    try {
+      if (searchQuery.trim()) {
+        // Load more search results
+        await handleSearch(searchQuery, true);
+      } else {
+        // Load more personalized or trending discoveries
+        if (personalizedDiscoveries.length > 0) {
+          await fetchPersonalizedDiscoveries(activeCategory, true);
+        } else if (discoveries.length > 0) {
+          await fetchInsights(true);
+        }
+      }
+      setCurrentPage(prev => prev + 1);
+    } catch (err) {
+      console.error("Failed to load more data:", err);
+    } finally {
+      setLoadMoreLoading(false);
+    }
+  };
+
   // Handle category change
   const handleCategoryChange = async (categoryId) => {
     setActiveCategory(categoryId);
-    setSearchQuery(""); // Clear search when changing category
+    setSearchQuery("");
     setLoading(true);
-    
+    setCurrentPage(1);
+    setHasMoreData(true);
+
     try {
       await Promise.allSettled([
-        fetchTrendingDiscoveries(),
-        fetchPersonalizedDiscoveries(),
+        fetchTrendingDiscoveries(categoryId, false),
+        fetchPersonalizedDiscoveries(categoryId, false),
       ]);
     } catch (err) {
       console.error("Failed to load category data:", err);
@@ -246,9 +331,13 @@ const Discover = () => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchQuery.trim()) {
-        handleSearch(searchQuery);
+        setCurrentPage(1);
+        setHasMoreData(true);
+        handleSearch(searchQuery, false);
       } else if (searchQuery === "") {
         // Reset to category data when search is cleared
+        setCurrentPage(1);
+        setHasMoreData(true);
         loadAllData();
       }
     }, 500);
@@ -271,7 +360,7 @@ const Discover = () => {
         }
         return acc;
       }, []);
-
+      console.log(categories,allDiscoveries);
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -313,68 +402,105 @@ const Discover = () => {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 sm:gap-8 mb-12 sm:mb-16">
-            <div className="flex items-start sm:items-center gap-4 overflow-x-auto sm:overflow-visible pb-4 sm:pb-0 scrollbar-hide">
-              {categories.map((category) => (
-                <Button
-                  key={category.id}
-                  variant={
-                    activeCategory === category.id ? "default" : "outline"
+          {categories.length > 0 && (
+  <div className="flex flex-col gap-4 mb-8 sm:mb-12 lg:mb-16">
+    {/* Mobile: Vertical scroll, Tablet+: Horizontal scroll with fade edges */}
+    <div className="relative">
+      {/* Fade gradient for larger screens */}
+      <div className="hidden sm:block absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+      <div className="hidden sm:block absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+      
+      {/* Scrollable container */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 overflow-x-auto sm:overflow-x-scroll scrollbar-hide pb-2 sm:pb-4 px-1">
+        {categories.map((category) => (
+          <Button
+            key={category.id}
+            variant={activeCategory === category.id ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleCategoryChange(category.id)}
+            className={`
+              group relative flex-shrink-0 w-full sm:w-auto
+              px-4 sm:px-6 lg:px-8 
+              py-2.5 sm:py-3 lg:py-4 
+              rounded-xl sm:rounded-2xl 
+              transition-all duration-300 ease-out
+              text-sm sm:text-base lg:text-lg
+              font-medium
+              ${
+                activeCategory === category.id
+                  ? "bg-gradient-primary text-white shadow-lg shadow-primary/25 border-0 scale-[1.02] sm:scale-105"
+                  : "glass-card border-primary/20 text-foreground hover:border-primary/40 hover:bg-primary/5 hover:scale-[1.01] sm:hover:scale-102 hover:shadow-md"
+              }
+            `}
+          >
+            {/* Button content with proper spacing */}
+            <div className="flex items-center justify-between sm:justify-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <span className="truncate">{category.label}</span>
+              <Badge
+                variant="secondary"
+                className={`
+                  flex-shrink-0 text-xs rounded-full px-2 py-0.5
+                  transition-all duration-300
+                  ${
+                    activeCategory === category.id
+                      ? "bg-white/20 text-white border-0"
+                      : "bg-primary/10 text-primary border-primary/20 group-hover:bg-primary/15"
                   }
-                  size="lg"
-                  onClick={() => handleCategoryChange(category.id)}
-                  className={`
-          whitespace-nowrap px-6 sm:px-8 py-3 sm:py-4 rounded-2xl transition-all duration-300 min-w-fit text-sm sm:text-base
-          ${
-            activeCategory === category.id
-              ? "bg-gradient-primary text-white shadow-hover border-0 scale-105"
-              : "glass-card border-primary/20 text-foreground hover:border-primary/40 hover:bg-primary/5 hover:scale-102"
-          }
-        `}
-                >
-                  <span className="font-medium">{category.label}</span>
-                  <Badge
-                    variant="secondary"
-                    className={`ml-2 sm:ml-3 text-xs rounded-full px-2 py-1 ${
-                      activeCategory === category.id
-                        ? "bg-white/20 text-white border-0"
-                        : "bg-primary/10 text-primary border-primary/20"
-                    }`}
-                  >
-                    {category.count}
-                  </Badge>
-                </Button>
-              ))}
+                `}
+              >
+                {category.count}
+              </Badge>
             </div>
-          </div>
+            
+            {/* Active indicator for mobile */}
+            {activeCategory === category.id && (
+              <div className="sm:hidden absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full" />
+            )}
+          </Button>
+        ))}
+      </div>
+    </div>
+    
+    {/* Optional: Category count summary for mobile */}
+    <div className="sm:hidden flex items-center justify-center gap-2 text-xs text-muted-foreground">
+      <span>
+        {categories.length} categor{categories.length === 1 ? 'y' : 'ies'}
+      </span>
+      <span>•</span>
+      <span>
+        {categories.reduce((sum, cat) => sum + cat.count, 0)} total items
+      </span>
+    </div>
+  </div>
+)}
 
           {/* Stats Overview */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
             <Card className="glass-card text-center p-8 hover-lift">
               <Star className="w-10 h-10 text-accent-amber mx-auto mb-4 hover-glow" />
               <div className="text-3xl font-bold text-foreground mb-2">
-                {stats.averageRating}
+                {stats.averageRating.toFixed(1)}
               </div>
               <div className="text-muted-foreground">Average Rating</div>
             </Card>
             <Card className="glass-card text-center p-8 hover-lift">
               <Heart className="w-10 h-10 text-accent-rose mx-auto mb-4 hover-glow" />
               <div className="text-3xl font-bold text-foreground mb-2">
-                {stats.totalItems}
+                {stats.totalDiscoveries.toLocaleString()}
               </div>
               <div className="text-muted-foreground">Curated Items</div>
             </Card>
             <Card className="glass-card text-center p-8 hover-lift">
               <TrendingUp className="w-10 h-10 text-secondary mx-auto mb-4 hover-glow" />
               <div className="text-3xl font-bold text-foreground mb-2">
-                {stats.trendingCount}
+                {stats.trending}
               </div>
               <div className="text-muted-foreground">Trending Now</div>
             </Card>
             <Card className="glass-card text-center p-8 hover-lift">
               <Grid2X2 className="w-10 h-10 text-primary mx-auto mb-4 hover-glow" />
               <div className="text-3xl font-bold text-foreground mb-2">
-                {stats.categories}
+                {stats.categoriesTotal}
               </div>
               <div className="text-muted-foreground">Categories</div>
             </Card>
@@ -502,16 +628,43 @@ const Discover = () => {
           )}
 
           {/* Load More */}
-          {!loading && !error && allDiscoveries.length > 0 && (
+          {!loading && !error && allDiscoveries.length > 0 && hasMoreData && (
             <div className="text-center mt-12">
               <Button
                 variant="outline"
                 size="lg"
                 className="hover-lift"
+                onClick={loadMoreData}
+                disabled={loadMoreLoading}
+              >
+                {loadMoreLoading ? (
+                  <>
+                    <div className="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full mr-2"></div>
+                    Loading More...
+                  </>
+                ) : (
+                  <>
+                    Load More Discoveries
+                    <TrendingUp className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* End of Results */}
+          {!loading && !error && allDiscoveries.length > 0 && !hasMoreData && (
+            <div className="text-center mt-12">
+              <div className="text-muted-foreground">
+                🎉 You've seen all available discoveries! 
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
                 onClick={() => loadAllData()}
               >
-                Load More Discoveries
-                <TrendingUp className="w-4 h-4 ml-2" />
+                Refresh for new content
               </Button>
             </div>
           )}

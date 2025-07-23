@@ -5,258 +5,6 @@ const { requireAuth, optionalAuth } = require('../config/auth');
 
 const router = express.Router();
 
-// Get cultural discoveries with enhanced preference-based personalization
-router.get('/insights', optionalAuth, async (req, res) => {
-  try {
-    const {
-      category = 'all',
-      limit = 10,
-      page = 1,
-      sortBy = 'relevance',
-      tags,
-      minRating,
-      maxRating,
-      releaseYear
-    } = req.query;
-
-    // Category mapping for API calls
-    const categoryMap = {
-      all: 'urn:entity:movie',
-      film: 'urn:entity:movie',
-      music: 'urn:entity:music',
-      literature: 'urn:entity:book',
-      art: 'urn:entity:art',
-      design: 'urn:entity:design'
-    };
-
-    // Get user preferences for enhanced filtering
-    let userPreferences = null;
-    if (req.user) {
-      const user = await User.findById(req.user._id);
-      userPreferences = user.preferences;
-    }
-
-    // Build API parameters with preference-based defaults
-    const apiParams = buildPreferenceBasedParams({
-      category,
-      limit: Math.min(parseInt(limit), 50),
-      offset: (parseInt(page) - 1) * parseInt(limit),
-      releaseYear,
-      tags,
-      minRating,
-      maxRating
-    }, userPreferences, categoryMap);
-
-    // Make API call to Qloo
-    const response = await axios.get(`${process.env.QLOO_API_URL}/v2/insights`, {
-      params: apiParams,
-      headers: {
-        'X-API-Key': process.env.QLOO_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    });
-
-    // Process and format the response with preference scoring
-    const discoveries = await processDiscoveriesData(response.data, userPreferences);
-    
-    // Apply preference-based sorting
-    const sortedDiscoveries = sortByPreferences(discoveries, userPreferences, sortBy);
-
-    // Add to user's recommendation history if authenticated
-    if (req.user) {
-      await addToUserHistory(req.user._id, sortedDiscoveries.slice(0, 5));
-    }
-
-    res.json({
-      success: true,
-      discoveries: sortedDiscoveries,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total: response.data.total || sortedDiscoveries.length,
-        hasMore: sortedDiscoveries.length === parseInt(limit)
-      },
-      filters: {
-        category,
-        sortBy,
-        tags,
-        minRating,
-        maxRating,
-        releaseYear
-      },
-      personalization: userPreferences ? {
-        appliedPreferences: getAppliedPreferences(userPreferences),
-        preferenceMatch: true
-      } : null
-    });
-
-  } catch (error) {
-    console.error('Discover insights error:', error);
-    
-    // Return fallback data if API fails
-    const fallbackData = generateFallbackData(req.query);
-    
-    res.json({
-      success: true,
-      discoveries: fallbackData,
-      fallback: true,
-      message: 'Using cached cultural discoveries',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// Get personalized recommendations based purely on preferences
-router.get('/personalized', requireAuth, async (req, res) => {
-  try {
-    const { limit = 15, excludeViewed = true, preferenceWeight = 'high' } = req.query;
-    
-    const user = await User.findById(req.user._id);
-    const userPreferences = user.preferences;
-
-    if (!userPreferences || Object.keys(userPreferences).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'User preferences not found. Please update your preferences first.',
-        requiresSetup: true
-      });
-    }
-
-    // Build highly personalized query based on user preferences
-    const personalizedParams = buildAdvancedPreferenceQuery(userPreferences, preferenceWeight);
-
-    // Exclude previously viewed items
-    let excludeIds = [];
-    if (excludeViewed) {
-      excludeIds = user.recommendations.map(rec => rec.itemId).filter(Boolean);
-    }
-
-    const response = await axios.get(`${process.env.QLOO_API_URL}/v2/recommendations`, {
-      params: {
-        ...personalizedParams,
-        limit: parseInt(limit) * 2, // Get more results to filter
-        exclude: excludeIds.join(',')
-      },
-      headers: {
-        'X-API-Key': process.env.QLOO_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    });
-
-    const recommendations = await processDiscoveriesData(response.data, userPreferences);
-
-    // Calculate detailed preference scores
-    const scoredRecommendations = recommendations.map(rec => ({
-      ...rec,
-      preferenceScore: calculateDetailedPreferenceScore(rec, userPreferences),
-      preferenceBreakdown: getPreferenceBreakdown(rec, userPreferences)
-    }))
-    .filter(rec => rec.preferenceScore > 0.3) // Only show items with decent preference match
-    .sort((a, b) => b.preferenceScore - a.preferenceScore)
-    .slice(0, parseInt(limit));
-
-    res.json({
-      success: true,
-      recommendations: scoredRecommendations,
-      personalization: {
-        basedOn: {
-          preferences: getPreferencesSummary(userPreferences),
-          totalPreferences: Object.keys(userPreferences).length,
-          history: user.recommendations.length,
-          preferenceWeight
-        },
-        averageScore: scoredRecommendations.reduce((sum, rec) => sum + rec.preferenceScore, 0) / scoredRecommendations.length || 0
-      }
-    });
-
-  } catch (error) {
-    console.error('Personalized recommendations error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch personalized recommendations',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// New route: Update user preferences
-router.post('/preferences', requireAuth, async (req, res) => {
-  try {
-    const {
-      favoriteGenres,
-      preferredDecades,
-      favoriteDirectors,
-      favoriteArtists,
-      preferredLanguages,
-      minRating,
-      maxRating,
-      contentTypes,
-      moodPreferences,
-      themePreferences,
-      excludedTags
-    } = req.body;
-
-    const user = await User.findById(req.user._id);
-    
-    // Update preferences
-    user.preferences = {
-      ...user.preferences,
-      favoriteGenres: favoriteGenres || user.preferences?.favoriteGenres || [],
-      preferredDecades: preferredDecades || user.preferences?.preferredDecades || [],
-      favoriteDirectors: favoriteDirectors || user.preferences?.favoriteDirectors || [],
-      favoriteArtists: favoriteArtists || user.preferences?.favoriteArtists || [],
-      preferredLanguages: preferredLanguages || user.preferences?.preferredLanguages || [],
-      minRating: minRating !== undefined ? minRating : user.preferences?.minRating || 3.0,
-      maxRating: maxRating !== undefined ? maxRating : user.preferences?.maxRating || 10.0,
-      contentTypes: contentTypes || user.preferences?.contentTypes || [],
-      moodPreferences: moodPreferences || user.preferences?.moodPreferences || [],
-      themePreferences: themePreferences || user.preferences?.themePreferences || [],
-      excludedTags: excludedTags || user.preferences?.excludedTags || [],
-      lastUpdated: new Date()
-    };
-
-    await user.save();
-
-    res.json({
-      success: true,
-      message: 'Preferences updated successfully',
-      preferences: user.preferences,
-      recommendationsWillImprove: true
-    });
-
-  } catch (error) {
-    console.error('Update preferences error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update preferences',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
-// New route: Get user preferences
-router.get('/preferences', requireAuth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
-    
-    res.json({
-      success: true,
-      preferences: user.preferences || {},
-      hasPreferences: user.preferences && Object.keys(user.preferences).length > 0,
-      lastUpdated: user.preferences?.lastUpdated || null
-    });
-
-  } catch (error) {
-    console.error('Get preferences error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch preferences',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
 
 // Get trending discoveries with preference enhancement
 router.get('/trending', optionalAuth, async (req, res) => {
@@ -348,62 +96,6 @@ router.get('/trending', optionalAuth, async (req, res) => {
     });
   }
 });
-
-// Get discovery details with enhanced information
-router.get('/details/:id', optionalAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const response = await axios.get(`${process.env.QLOO_API_URL}/v2/entities/${id}`, {
-      headers: {
-        'X-API-Key': process.env.QLOO_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      timeout: 8000
-    });
-
-    const details = await processDiscoveryDetails(response.data, req.user?.preferences);
-
-    // Get related recommendations
-    const relatedResponse = await axios.get(`${process.env.QLOO_API_URL}/v2/recommendations`, {
-      params: {
-        seed: id,
-        limit: 6
-      },
-      headers: {
-        'X-API-Key': process.env.QLOO_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      timeout: 8000
-    });
-
-    const related = await processDiscoveriesData(relatedResponse.data, req.user?.preferences);
-
-    // Add preference scores if user is authenticated
-    if (req.user) {
-      const user = await User.findById(req.user._id);
-      if (user.preferences) {
-        details.preferenceScore = calculateDetailedPreferenceScore(details, user.preferences);
-        details.preferenceBreakdown = getPreferenceBreakdown(details, user.preferences);
-      }
-    }
-
-    res.json({
-      success: true,
-      details,
-      related
-    });
-
-  } catch (error) {
-    console.error('Discovery details error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch discovery details',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-});
-
 // Get discovery stats with preference insights
 router.get('/stats', optionalAuth, async (req, res) => {
   try {
@@ -476,8 +168,388 @@ router.get('/stats', optionalAuth, async (req, res) => {
     });
   }
 });
+// Get cultural discoveries with enhanced preference-based personalization
+router.get('/insights', optionalAuth, async (req, res) => {
+  try {
+    const {
+      category = 'all',
+      limit = 10,
+      page = 1,
+      sortBy = 'relevance',
+      tags,
+      minRating,
+      maxRating,
+      releaseYear
+    } = req.query;
 
-// Enhanced search with preference boosting
+    // Get user preferences for enhanced filtering
+    let userPreferences = null;
+    if (req.user) {
+      const user = await User.findById(req.user._id);
+      userPreferences = user.preferences;
+    }
+
+    // Build API parameters with preference-based defaults
+    const apiParams = buildPreferenceBasedParams({
+      category,
+      limit: Math.min(parseInt(limit), 50),
+      page: parseInt(page),
+      releaseYear,
+      tags,
+      minRating,
+      maxRating
+    }, userPreferences);
+
+    // Make API call to Qloo Insights
+    const response = await axios.get(`${process.env.QLOO_API_URL}/insights`, {
+      params: apiParams,
+      headers: {
+        'X-API-Key': process.env.QLOO_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
+    });
+
+    // Process and format the response with preference scoring
+    const discoveries = await processDiscoveriesData(response.data, userPreferences);
+    
+    // Apply preference-based sorting
+    const sortedDiscoveries = sortByPreferences(discoveries, userPreferences, sortBy);
+
+    // Add to user's recommendation history if authenticated
+    if (req.user) {
+      await addToUserHistory(req.user._id, sortedDiscoveries.slice(0, 5));
+    }
+
+    res.json({
+      success: true,
+      discoveries: sortedDiscoveries,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: response.data.total || sortedDiscoveries.length,
+        hasMore: sortedDiscoveries.length === parseInt(limit)
+      },
+      filters: {
+        category,
+        sortBy,
+        tags,
+        minRating,
+        maxRating,
+        releaseYear
+      },
+      personalization: userPreferences ? {
+        appliedPreferences: getAppliedPreferences(userPreferences),
+        preferenceMatch: true
+      } : null
+    });
+
+  } catch (error) {
+    console.error('Discover insights error:', error);
+    
+    // Return fallback data if API fails
+    const fallbackData = generateFallbackData(req.query);
+    
+    res.json({
+      success: true,
+      discoveries: fallbackData,
+      fallback: true,
+      message: 'Using cached cultural discoveries',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// FIXED: Get personalized recommendations using available APIs and user preferences
+router.get('/personalized', requireAuth, async (req, res) => {
+  try {
+    const { limit = 15, excludeViewed = true, preferenceWeight = 'high' } = req.query;
+    
+    const user = await User.findById(req.user._id);
+    const userPreferences = user.preferences;
+
+    if (!userPreferences || Object.keys(userPreferences).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'User preferences not found. Please update your preferences first.',
+        requiresSetup: true
+      });
+    }
+
+    // Since /recommendations doesn't exist, we'll use multiple targeted searches
+    // based on user preferences to create personalized recommendations
+    const personalizedResults = [];
+
+    // 1. Search by favorite genres
+    if (userPreferences.favoriteGenres?.length) {
+      for (const genre of userPreferences.favoriteGenres.slice(0, 3)) {
+        try {
+          const searchResponse = await axios.get(`${process.env.QLOO_API_URL}/entity/search`, {
+            params: {
+              q: genre,
+              limit: 5,
+              type: getCategoryTypes(userPreferences.categories)
+            },
+            headers: {
+              'X-API-Key': process.env.QLOO_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            timeout: 8000
+          });
+
+          if (searchResponse.data?.results) {
+            personalizedResults.push(...searchResponse.data.results);
+          }
+        } catch (genreError) {
+          console.warn(`Failed to search for genre ${genre}:`, genreError.message);
+        }
+      }
+    }
+
+    // 2. Get trending items that match user preferences
+    try {
+      const trendingResponse = await axios.get(`${process.env.QLOO_API_URL}/trending`, {
+        params: {
+          limit: 10,
+          type: getCategoryTypes(userPreferences.categories)
+        },
+        headers: {
+          'X-API-Key': process.env.QLOO_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        timeout: 8000
+      });
+
+      if (trendingResponse.data?.results) {
+        personalizedResults.push(...trendingResponse.data.results);
+      }
+    } catch (trendingError) {
+      console.warn('Failed to fetch trending:', trendingError.message);
+    }
+
+    // 3. Search by mood preferences
+    if (userPreferences.moodPreferences?.length) {
+      for (const mood of userPreferences.moodPreferences.slice(0, 2)) {
+        try {
+          const moodResponse = await axios.get(`${process.env.QLOO_API_URL}/entity/search`, {
+            params: {
+              q: mood,
+              limit: 3
+            },
+            headers: {
+              'X-API-Key': process.env.QLOO_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            timeout: 8000
+          });
+
+          if (moodResponse.data?.results) {
+            personalizedResults.push(...moodResponse.data.results);
+          }
+        } catch (moodError) {
+          console.warn(`Failed to search for mood ${mood}:`, moodError.message);
+        }
+      }
+    }
+
+    // Remove duplicates and process
+    const uniqueResults = removeDuplicates(personalizedResults);
+    const processedRecommendations = await processDiscoveriesData({ results: uniqueResults }, userPreferences);
+
+    // Exclude previously viewed items
+    let filteredRecommendations = processedRecommendations;
+    if (excludeViewed) {
+      const viewedIds = user.recommendations.map(rec => rec.itemId).filter(Boolean);
+      filteredRecommendations = processedRecommendations.filter(rec => !viewedIds.includes(rec.id));
+    }
+
+    // Calculate detailed preference scores and sort
+    const scoredRecommendations = filteredRecommendations.map(rec => ({
+      ...rec,
+      preferenceScore: calculateDetailedPreferenceScore(rec, userPreferences),
+      preferenceBreakdown: getPreferenceBreakdown(rec, userPreferences)
+    }))
+    .filter(rec => rec.preferenceScore > 0.2) // Show items with some preference match
+    .sort((a, b) => b.preferenceScore - a.preferenceScore)
+    .slice(0, parseInt(limit));
+
+    // If we don't have enough results, add some fallback content
+    if (scoredRecommendations.length < parseInt(limit)) {
+      const fallbackCount = parseInt(limit) - scoredRecommendations.length;
+      const fallbackData = generatePersonalizedFallback(userPreferences, fallbackCount);
+      scoredRecommendations.push(...fallbackData);
+    }
+
+    res.json({
+      success: true,
+      recommendations: scoredRecommendations,
+      personalization: {
+        basedOn: {
+          preferences: getPreferencesSummary(userPreferences),
+          totalPreferences: Object.keys(userPreferences).length,
+          history: user.recommendations.length,
+          preferenceWeight
+        },
+        averageScore: scoredRecommendations.reduce((sum, rec) => sum + (rec.preferenceScore || 0), 0) / scoredRecommendations.length || 0,
+        method: 'preference-based-search' // Indicate we're using search instead of recommendations API
+      }
+    });
+
+  } catch (error) {
+    console.error('Personalized recommendations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch personalized recommendations',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Enhanced preferences route with validation
+router.post('/preferences', requireAuth, async (req, res) => {
+  try {
+    const {
+      categories,
+      favoriteGenres,
+      culturalTags,
+      moodPreferences,
+      location,
+      notifications,
+      publicProfile,
+      aiInsights
+    } = req.body;
+
+    const user = await User.findById(req.user._id);
+    
+    // Update preferences with validation
+    user.preferences = {
+      ...user.preferences,
+      categories: Array.isArray(categories) ? categories : user.preferences?.categories || ['all'],
+      favoriteGenres: Array.isArray(favoriteGenres) ? favoriteGenres.slice(0, 10) : user.preferences?.favoriteGenres || [],
+      culturalTags: Array.isArray(culturalTags) ? culturalTags.slice(0, 15) : user.preferences?.culturalTags || [],
+      moodPreferences: Array.isArray(moodPreferences) ? moodPreferences : user.preferences?.moodPreferences || [],
+      location: location || user.preferences?.location || {},
+      notifications: notifications !== undefined ? notifications : user.preferences?.notifications !== false,
+      publicProfile: publicProfile !== undefined ? publicProfile : user.preferences?.publicProfile || false,
+      aiInsights: aiInsights !== undefined ? aiInsights : user.preferences?.aiInsights !== false,
+      lastUpdated: new Date()
+    };
+
+    await user.save();
+
+    // Update cultural profile based on preferences
+    await updateCulturalProfile(user);
+
+    res.json({
+      success: true,
+      message: 'Preferences updated successfully',
+      preferences: user.preferences,
+      culturalProfile: user.culturalProfile,
+      recommendationsWillImprove: true
+    });
+
+  } catch (error) {
+    console.error('Update preferences error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update preferences',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Get user preferences
+router.get('/preferences', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    res.json({
+      success: true,
+      preferences: user.preferences || {},
+      culturalProfile: user.culturalProfile || {},
+      hasPreferences: user.preferences && Object.keys(user.preferences).length > 0,
+      lastUpdated: user.preferences?.lastUpdated || null
+    });
+
+  } catch (error) {
+    console.error('Get preferences error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch preferences',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// // FIXED: Get trending discoveries using available API
+// router.get('/trending', optionalAuth, async (req, res) => {
+//   try {
+//     const { category = 'all', limit = 20, preferenceBoost = true } = req.query;
+
+//     // Get user preferences for boosting
+//     let userPreferences = null;
+//     if (req.user && preferenceBoost === 'true') {
+//       const user = await User.findById(req.user._id);
+//       userPreferences = user.preferences;
+//     }
+
+//     // Use trending API endpoint
+//     const response = await axios.get(`${process.env.QLOO_API_URL}/trending`, {
+//       params: {
+//         limit: parseInt(limit),
+//         type: getCategoryTypes(category === 'all' ? ['all'] : [category])
+//       },
+//       headers: {
+//         'X-API-Key': process.env.QLOO_API_KEY,
+//         'Content-Type': 'application/json'
+//       },
+//       timeout: 8000
+//     });
+
+//     const processed = await processDiscoveriesData(response.data, userPreferences);
+
+//     // Apply preference boosting if user is authenticated and has preferences
+//     let trending = processed;
+//     if (userPreferences && preferenceBoost === 'true') {
+//       trending = processed.map(item => ({
+//         ...item,
+//         preferenceScore: calculateDetailedPreferenceScore(item, userPreferences),
+//         originalRank: processed.indexOf(item) + 1
+//       })).sort((a, b) => {
+//         // Combine trending relevance with preference score
+//         const aScore = (a.relevanceScore || 0) * 0.7 + (a.preferenceScore || 0) * 0.3;
+//         const bScore = (b.relevanceScore || 0) * 0.7 + (b.preferenceScore || 0) * 0.3;
+//         return bScore - aScore;
+//       });
+//     }
+
+//     res.json({
+//       success: true,
+//       trending: trending.slice(0, parseInt(limit)),
+//       category,
+//       count: trending.length,
+//       preferencesBoosted: userPreferences && preferenceBoost === 'true',
+//       personalization: userPreferences && preferenceBoost === 'true' ? {
+//         averagePreferenceScore: trending.reduce((sum, item) => sum + (item.preferenceScore || 0), 0) / trending.length,
+//         appliedPreferences: getAppliedPreferences(userPreferences)
+//       } : null
+//     });
+
+//   } catch (error) {
+//     console.error('Trending discoveries error:', error);
+    
+//     // Fallback data
+//     const fallbackData = generateFallbackData({ category, limit });
+//     res.json({
+//       success: true,
+//       trending: fallbackData,
+//       fallback: true,
+//       message: 'Using cached trending data'
+//     });
+//   }
+// });
+
+// FIXED: Enhanced search with available API
 router.get('/search', optionalAuth, async (req, res) => {
   try {
     const { q, category, limit = 20, page = 1, usePreferences = true } = req.query;
@@ -492,33 +564,31 @@ router.get('/search', optionalAuth, async (req, res) => {
     const searchParams = {
       q: q.trim(),
       limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit)
+      offset: (parseInt(page) - 1) * parseInt(limit) // Use offset instead of page
     };
 
+    // Add category filter if specified
     if (category && category !== 'all') {
-      const categoryMap = {
-        film: 'urn:entity:movie',
-        music: 'urn:entity:music',
-        literature: 'urn:entity:book',
-        art: 'urn:entity:art',
-        design: 'urn:entity:design'
-      };
-      searchParams['filter.type'] = categoryMap[category];
+      const categoryTypes = getCategoryTypes([category]);
+      if (categoryTypes) {
+        searchParams.type = categoryTypes;
+      }
     }
 
     // Apply user preferences to search if requested and user is authenticated
     let userPreferences = null;
     if (req.user && usePreferences === 'true') {
-      const user = await User.findById(req.user._id);
-      userPreferences = user.preferences;
-      
-      // Enhance search with preference filters
-      if (userPreferences) {
-        searchParams = enhanceSearchWithPreferences(searchParams, userPreferences);
+      try {
+        const user = await User.findById(req.user._id);
+        userPreferences = user?.preferences;
+      } catch (userError) {
+        console.warn('Failed to fetch user preferences:', userError.message);
       }
     }
 
-    const response = await axios.get(`${process.env.QLOO_API_URL}/v2/search`, {
+    console.log('Search params:', searchParams); // Debug log
+
+    const response = await axios.get(`${process.env.QLOO_API_URL}/entity/search`, {
       params: searchParams,
       headers: {
         'X-API-Key': process.env.QLOO_API_KEY,
@@ -527,226 +597,271 @@ router.get('/search', optionalAuth, async (req, res) => {
       timeout: 10000
     });
 
-    let results = await processDiscoveriesData(response.data, userPreferences);
+    // Handle different response structures
+    let rawResults = response.data?.results || response.data?.entities || response.data || [];
+    if (!Array.isArray(rawResults)) {
+      rawResults = [];
+    }
+
+    let results = await processDiscoveriesData({ results: rawResults }, userPreferences);
 
     // Boost results based on preferences
-    if (userPreferences && usePreferences === 'true') {
+    if (userPreferences && usePreferences === 'true' && results.length > 0) {
       results = results.map(result => ({
         ...result,
         preferenceScore: calculateDetailedPreferenceScore(result, userPreferences)
-      })).sort((a, b) => b.preferenceScore - a.preferenceScore);
+      })).sort((a, b) => (b.preferenceScore || 0) - (a.preferenceScore || 0));
     }
 
     res.json({
       success: true,
       results,
       query: q,
-      category,
+      category: category || 'all',
       preferencesBoosted: userPreferences && usePreferences === 'true',
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total: response.data.total || results.length
+        total: response.data?.total || results.length,
+        hasMore: results.length === parseInt(limit)
       }
     });
 
   } catch (error) {
-    console.error('Search discoveries error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to search discoveries',
+    console.error('Search discoveries error:', error.message);
+    console.error('Error details:', {
+      url: error.config?.url,
+      params: error.config?.params,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data
+    });
+
+    // Return fallback results instead of complete failure
+    const fallbackResults = generateSearchFallback(req.query.q, req.query.category, parseInt(req.query.limit) || 20);
+    
+    res.json({
+      success: true,
+      results: fallbackResults,
+      query: req.query.q,
+      category: req.query.category || 'all',
+      fallback: true,
+      message: 'Search service temporarily unavailable, showing cached results',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
 
-// Helper functions
+// Helper Functions
 
-function buildPreferenceBasedParams(baseParams, userPreferences, categoryMap) {
-  const apiParams = {
-    'filter.type': categoryMap[baseParams.category] || categoryMap.all,
-    'filter.release_year.min': baseParams.releaseYear || '2022',
-    limit: baseParams.limit,
-    offset: baseParams.offset
+// Updated getCategoryTypes function with better error handling
+function getCategoryTypes(categories) {
+  const categoryMap = {
+    all: '',
+    film: 'movie',
+    music: 'music',
+    literature: 'book',
+    art: 'art',
+    design: 'design'
   };
+  
+  if (!categories || !Array.isArray(categories) || categories.length === 0) {
+    return '';
+  }
+  
+  const types = categories
+    .map(cat => categoryMap[cat?.toLowerCase()] || '')
+    .filter(type => type);
+    
+  return types.length > 0 ? types.join(',') : '';
+}
+
+// Add this helper function for search fallback
+function generateSearchFallback(query, category, limit) {
+  const categories = ['Film', 'Music', 'Literature', 'Art', 'Design'];
+  const selectedCategory = category && category !== 'all' ? 
+    category.charAt(0).toUpperCase() + category.slice(1) : 
+    categories[Math.floor(Math.random() * categories.length)];
+  
+  return Array.from({ length: limit }, (_, i) => ({
+    id: `search-fallback-${i}`,
+    title: `${query} - ${selectedCategory} Discovery ${i + 1}`,
+    description: `Search result for "${query}" in ${selectedCategory.toLowerCase()} category.`,
+    category: selectedCategory,
+    rating: (3.5 + Math.random() * 1.5).toFixed(1),
+    trending: i % 4 === 0,
+    image: generateFallbackImage(i),
+    tags: ['Search Result', selectedCategory, query.charAt(0).toUpperCase() + query.slice(1)],
+    website: null,
+    fallback: true,
+    searchQuery: query
+  }));
+}
+
+function buildPreferenceBasedParams(baseParams, userPreferences) {
+  const apiParams = {
+    limit: baseParams.limit,
+    page: baseParams.page
+  };
+
+  // Add category filter
+  if (baseParams.category !== 'all') {
+    apiParams.type = getCategoryTypes([baseParams.category]);
+  }
 
   // Apply user preferences if available
   if (userPreferences) {
-    // Genre preferences
+    // Add preference-based search terms
     if (userPreferences.favoriteGenres?.length) {
-      apiParams['filter.genre'] = userPreferences.favoriteGenres.slice(0, 3).join(',');
+      apiParams.genres = userPreferences.favoriteGenres.slice(0, 3).join(',');
     }
-
-    // Rating preferences
-    if (userPreferences.minRating) {
-      apiParams['filter.rating.min'] = Math.max(baseParams.minRating || 0, userPreferences.minRating);
-    }
-    if (userPreferences.maxRating) {
-      apiParams['filter.rating.max'] = Math.min(baseParams.maxRating || 10, userPreferences.maxRating);
-    }
-
-    // Language preferences
-    if (userPreferences.preferredLanguages?.length) {
-      apiParams['filter.language'] = userPreferences.preferredLanguages.join(',');
-    }
-
-    // Exclude unwanted content
-    if (userPreferences.excludedTags?.length) {
-      apiParams['filter.exclude_tags'] = userPreferences.excludedTags.join(',');
+    
+    if (userPreferences.moodPreferences?.length) {
+      apiParams.moods = userPreferences.moodPreferences.slice(0, 2).join(',');
     }
   }
 
-  // Override with explicit parameters
+  // Add explicit parameters
   if (baseParams.tags) {
-    apiParams['filter.tags'] = baseParams.tags;
+    apiParams.tags = baseParams.tags;
   }
-  if (baseParams.minRating) {
-    apiParams['filter.rating.min'] = baseParams.minRating;
-  }
-  if (baseParams.maxRating) {
-    apiParams['filter.rating.max'] = baseParams.maxRating;
+  if (baseParams.releaseYear) {
+    apiParams.year = baseParams.releaseYear;
   }
 
   return apiParams;
 }
 
-function buildAdvancedPreferenceQuery(userPreferences, weight = 'high') {
-  const params = {};
+function removeDuplicates(items) {
+  const seen = new Set();
+  return items.filter(item => {
+    const key = item.id || item.name || JSON.stringify(item);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+async function updateCulturalProfile(user) {
+  if (!user.preferences) return;
+
+  const profile = user.culturalProfile || {};
   
-  // Apply stronger preference filtering based on weight
-  const maxItems = weight === 'high' ? 5 : weight === 'medium' ? 8 : 10;
-  
-  if (userPreferences.favoriteGenres?.length) {
-    params['filter.genre'] = userPreferences.favoriteGenres.slice(0, maxItems).join(',');
+  // Update based on categories preference
+  if (user.preferences.categories) {
+    user.preferences.categories.forEach(category => {
+      switch(category) {
+        case 'film':
+          profile.film = Math.min((profile.film || 0) + 10, 100);
+          break;
+        case 'music':
+          profile.music = Math.min((profile.music || 0) + 10, 100);
+          break;
+        case 'literature':
+          profile.literature = Math.min((profile.literature || 0) + 10, 100);
+          break;
+        case 'art':
+          profile.visualArts = Math.min((profile.visualArts || 0) + 10, 100);
+          break;
+        case 'design':
+          profile.design = Math.min((profile.design || 0) + 10, 100);
+          break;
+      }
+    });
   }
+
+  user.culturalProfile = profile;
+  await user.save();
+}
+
+function generatePersonalizedFallback(preferences, count) {
+  const categories = preferences.categories || ['all'];
+  const genres = preferences.favoriteGenres || ['contemporary', 'classic'];
   
-  if (userPreferences.preferredDecades?.length) {
-    const decades = userPreferences.preferredDecades.map(d => `${d}s`).slice(0, 3).join(',');
-    params['filter.decade'] = decades;
-  }
-  
-  if (userPreferences.favoriteDirectors?.length) {
-    params['filter.director'] = userPreferences.favoriteDirectors.slice(0, 3).join(',');
-  }
-  
-  if (userPreferences.favoriteArtists?.length) {
-    params['filter.artist'] = userPreferences.favoriteArtists.slice(0, 3).join(',');
-  }
-  
-  if (userPreferences.minRating) {
-    params['filter.rating.min'] = userPreferences.minRating;
-  }
-  
-  if (userPreferences.preferredLanguages?.length) {
-    params['filter.language'] = userPreferences.preferredLanguages.join(',');
-  }
-  
-  if (userPreferences.moodPreferences?.length) {
-    params['filter.mood'] = userPreferences.moodPreferences.slice(0, 3).join(',');
-  }
-  
-  return params;
+  return Array.from({ length: count }, (_, i) => ({
+    id: `personalized-fallback-${i}`,
+    title: `${genres[i % genres.length]} ${categories[i % categories.length]} Discovery`,
+    description: `Personalized recommendation based on your ${genres[i % genres.length]} preferences.`,
+    category: categories[i % categories.length] !== 'all' ? categories[i % categories.length] : 'Cultural',
+    rating: (4.0 + Math.random() * 1.0).toFixed(1),
+    trending: false,
+    image: generateFallbackImage(i),
+    tags: [genres[i % genres.length], 'Personalized', 'Curated'],
+    preferenceScore: 0.8 + Math.random() * 0.2, // High preference score for fallback
+    fallback: true
+  }));
 }
 
 function calculateDetailedPreferenceScore(item, preferences) {
-  if (!preferences) return 0.5; // Default score for non-personalized
+  if (!preferences) return 0.5;
   
   let score = 0;
   let maxScore = 0;
+  
+  // Category matching (weight: 0.3)
+  if (preferences.categories?.length) {
+    maxScore += 0.3;
+    const categoryMatch = preferences.categories.some(cat => 
+      item.category?.toLowerCase().includes(cat.toLowerCase()) || cat === 'all'
+    );
+    if (categoryMatch) score += 0.3;
+  }
   
   // Genre matching (weight: 0.25)
   if (preferences.favoriteGenres?.length) {
     maxScore += 0.25;
     const genreMatch = preferences.favoriteGenres.some(genre => 
-      item.tags.some(tag => tag.toLowerCase().includes(genre.toLowerCase())) ||
-      item.category.toLowerCase().includes(genre.toLowerCase())
+      item.tags?.some(tag => tag.toLowerCase().includes(genre.toLowerCase())) ||
+      item.description?.toLowerCase().includes(genre.toLowerCase()) ||
+      item.title?.toLowerCase().includes(genre.toLowerCase())
     );
     if (genreMatch) score += 0.25;
   }
   
-  // Rating preference (weight: 0.20)
-  if (preferences.minRating !== undefined) {
-    maxScore += 0.20;
-    if (item.rating >= preferences.minRating) {
-      const ratingBonus = Math.min((item.rating - preferences.minRating) / 2, 0.20);
-      score += ratingBonus;
-    }
-  }
-  
-  // Mood/Theme matching (weight: 0.20)
-  if (preferences.moodPreferences?.length || preferences.themePreferences?.length) {
-    maxScore += 0.20;
-    const allMoodThemes = [...(preferences.moodPreferences || []), ...(preferences.themePreferences || [])];
-    const moodMatch = allMoodThemes.some(mood => 
-      item.tags.some(tag => tag.toLowerCase().includes(mood.toLowerCase())) ||
-      item.description.toLowerCase().includes(mood.toLowerCase())
+  // Mood matching (weight: 0.2)
+  if (preferences.moodPreferences?.length) {
+    maxScore += 0.2;
+    const moodMatch = preferences.moodPreferences.some(mood => 
+      item.tags?.some(tag => tag.toLowerCase().includes(mood.toLowerCase())) ||
+      item.description?.toLowerCase().includes(mood.toLowerCase())
     );
-    if (moodMatch) score += 0.20;
+    if (moodMatch) score += 0.2;
   }
   
-  // Content type preference (weight: 0.15)
-  if (preferences.contentTypes?.length) {
+  // Cultural tags matching (weight: 0.15)
+  if (preferences.culturalTags?.length) {
     maxScore += 0.15;
-    const typeMatch = preferences.contentTypes.some(type => 
-      item.category.toLowerCase().includes(type.toLowerCase())
+    const tagMatch = preferences.culturalTags.some(tag => 
+      item.tags?.some(itemTag => itemTag.toLowerCase().includes(tag.toLowerCase()))
     );
-    if (typeMatch) score += 0.15;
+    if (tagMatch) score += 0.15;
   }
   
-  // Trending bonus (weight: 0.10)
-  maxScore += 0.10;
-  if (item.trending) score += 0.10;
-  
-  // High rating bonus (weight: 0.10)
-  maxScore += 0.10;
-  if (item.rating >= 4.5) score += 0.10;
-  
-  // Penalty for excluded tags
-  if (preferences.excludedTags?.length) {
-    const hasExcludedTag = preferences.excludedTags.some(excludedTag => 
-      item.tags.some(tag => tag.toLowerCase().includes(excludedTag.toLowerCase()))
-    );
-    if (hasExcludedTag) score *= 0.5; // Reduce score by half
-  }
+  // High rating bonus (weight: 0.1)
+  maxScore += 0.1;
+  if (item.rating >= 4.0) score += 0.1;
   
   return maxScore > 0 ? Math.min(score / maxScore, 1.0) : 0.5;
 }
 
 function getPreferenceBreakdown(item, preferences) {
-  const breakdown = {
-    genreMatch: false,
-    ratingMatch: false,
-    moodMatch: false,
-    contentTypeMatch: false,
-    trending: item.trending || false,
-    highRating: item.rating >= 4.5,
-    excludedContent: false
+  return {
+    categoryMatch: preferences.categories?.some(cat => 
+      item.category?.toLowerCase().includes(cat.toLowerCase()) || cat === 'all'
+    ) || false,
+    genreMatch: preferences.favoriteGenres?.some(genre => 
+      item.tags?.some(tag => tag.toLowerCase().includes(genre.toLowerCase()))
+    ) || false,
+    moodMatch: preferences.moodPreferences?.some(mood => 
+      item.tags?.some(tag => tag.toLowerCase().includes(mood.toLowerCase()))
+    ) || false,
+    culturalTagMatch: preferences.culturalTags?.some(tag => 
+      item.tags?.some(itemTag => itemTag.toLowerCase().includes(tag.toLowerCase()))
+    ) || false,
+    highRating: item.rating >= 4.0
   };
-  
-  if (preferences.favoriteGenres?.length) {
-    breakdown.genreMatch = preferences.favoriteGenres.some(genre => 
-      item.tags.some(tag => tag.toLowerCase().includes(genre.toLowerCase()))
-    );
-  }
-  
-  if (preferences.minRating !== undefined) {
-    breakdown.ratingMatch = item.rating >= preferences.minRating;
-  }
-  
-  if (preferences.moodPreferences?.length) {
-    const allMoods = [...(preferences.moodPreferences || []), ...(preferences.themePreferences || [])];
-    breakdown.moodMatch = allMoods.some(mood => 
-      item.tags.some(tag => tag.toLowerCase().includes(mood.toLowerCase()))
-    );
-  }
-  
-  if (preferences.excludedTags?.length) {
-    breakdown.excludedContent = preferences.excludedTags.some(excludedTag => 
-      item.tags.some(tag => tag.toLowerCase().includes(excludedTag.toLowerCase()))
-    );
-  }
-  
-  return breakdown;
 }
 
 function sortByPreferences(discoveries, preferences, sortBy) {
@@ -773,115 +888,65 @@ function sortByPreferences(discoveries, preferences, sortBy) {
 function getAppliedPreferences(preferences) {
   const applied = [];
   
-  if (preferences.favoriteGenres?.length) applied.push(`${preferences.favoriteGenres.length} favorite genres`);
-  if (preferences.minRating) applied.push(`minimum rating: ${preferences.minRating}`);
-  if (preferences.preferredLanguages?.length) applied.push(`${preferences.preferredLanguages.length} preferred languages`);
-  if (preferences.moodPreferences?.length) applied.push(`${preferences.moodPreferences.length} mood preferences`);
-  if (preferences.excludedTags?.length) applied.push(`${preferences.excludedTags.length} excluded tags`);
+  if (preferences.categories?.length) applied.push(`${preferences.categories.length} categories`);
+  if (preferences.favoriteGenres?.length) applied.push(`${preferences.favoriteGenres.length} genres`);
+  if (preferences.moodPreferences?.length) applied.push(`${preferences.moodPreferences.length} moods`);
+  if (preferences.culturalTags?.length) applied.push(`${preferences.culturalTags.length} cultural tags`);
   
   return applied;
 }
 
 function getPreferencesSummary(preferences) {
   return {
+    categories: preferences.categories?.length || 0,
     genres: preferences.favoriteGenres?.length || 0,
-    decades: preferences.preferredDecades?.length || 0,
-    directors: preferences.favoriteDirectors?.length || 0,
-    artists: preferences.favoriteArtists?.length || 0,
-    languages: preferences.preferredLanguages?.length || 0,
     moods: preferences.moodPreferences?.length || 0,
-    themes: preferences.themePreferences?.length || 0,
-    minRating: preferences.minRating || null,
-    excluded: preferences.excludedTags?.length || 0
-  };
-}
-
-function enhanceSearchWithPreferences(searchParams, preferences) {
-  const enhanced = { ...searchParams };
-  
-  // Add preference-based boosts to search
-  if (preferences.favoriteGenres?.length) {
-    enhanced['boost.genre'] = preferences.favoriteGenres.slice(0, 3).join(',');
-  }
-  
-  if (preferences.minRating) {
-    enhanced['filter.rating.min'] = Math.max(enhanced['filter.rating.min'] || 0, preferences.minRating);
-  }
-  
-  if (preferences.preferredLanguages?.length) {
-    enhanced['boost.language'] = preferences.preferredLanguages.join(',');
-  }
-  
-  return enhanced;
-}
-
-function calculatePreferenceStats(preferences, recommendations) {
-  const stats = {
-    totalPreferences: Object.keys(preferences).length,
-    breakdown: {
-      genres: preferences.favoriteGenres?.length || 0,
-      decades: preferences.preferredDecades?.length || 0,
-      directors: preferences.favoriteDirectors?.length || 0,
-      artists: preferences.favoriteArtists?.length || 0,
-      languages: preferences.preferredLanguages?.length || 0,
-      moods: preferences.moodPreferences?.length || 0,
-      themes: preferences.themePreferences?.length || 0,
-      excluded: preferences.excludedTags?.length || 0
-    },
-    ratingRange: {
-      min: preferences.minRating || null,
-      max: preferences.maxRating || null
+    culturalTags: preferences.culturalTags?.length || 0,
+    location: preferences.location ? Object.keys(preferences.location).length : 0,
+    settings: {
+      notifications: preferences.notifications,
+      publicProfile: preferences.publicProfile,
+      aiInsights: preferences.aiInsights
     }
   };
-
-  // Analyze how preferences align with viewing history
-  if (recommendations.length > 0) {
-    const categoryCount = {};
-    recommendations.forEach(rec => {
-      categoryCount[rec.category] = (categoryCount[rec.category] || 0) + 1;
-    });
-    
-    const topViewedCategory = Object.entries(categoryCount)
-      .sort(([,a], [,b]) => b - a)[0]?.[0];
-    
-    stats.alignment = {
-      topViewedCategory,
-      totalViewed: recommendations.length,
-      averageRating: recommendations.reduce((sum, rec) => sum + (rec.rating || 0), 0) / recommendations.length,
-      preferencesLastUpdated: preferences.lastUpdated
-    };
-  }
-
-  return stats;
 }
 
-async function processDiscoveryDetails(apiData, userPreferences) {
-  const item = apiData.entity || apiData;
+// Keep existing helper functions
+async function processDiscoveriesData(apiData, userPreferences) {
+  const entities = apiData.results?.entities || apiData.entities || apiData.results || [];
   
-  return {
-    id: item.id,
-    title: item.name,
-    description: item.properties?.description,
-    category: item.subtype?.split(':').pop(),
-    rating: extractRating(item),
-    image: item.properties?.image?.url,
-    tags: item.tags || [],
-    website: item.properties?.websites?.[0],
-    releaseYear: item.properties?.release_year,
-    details: {
-      genre: item.properties?.genre,
-      director: item.properties?.director,
-      cast: item.properties?.cast,
-      duration: item.properties?.duration,
-      language: item.properties?.language,
-      country: item.properties?.country
-    },
-    external: item.external,
-    fullProperties: item.properties
-  };
+  return entities.map((item, index) => {
+    const rating = extractRating(item);
+    const subtype = item.subtype?.split(':').pop();
+    const tags = Array.isArray(item.tags)
+      ? item.tags.map(tag => typeof tag === 'object' && tag.name ? tag.name : tag)
+      : ["Curated", "Cultural"];
+
+    return {
+      id: item.id || `item-${index}`,
+      title: item.name || `Discovery ${index + 1}`,
+      description: item.properties?.description || item.description || `Explore this ${subtype || 'cultural item'}.`,
+      category: subtype ? subtype.charAt(0).toUpperCase() + subtype.slice(1) : "Cultural",
+      rating: Number(rating),
+      trending: item.relevance_score ? item.relevance_score > 0.75 : Math.random() > 0.7,
+      image: item.properties?.image?.url || item.image || generateFallbackImage(index),
+      tags,
+      website: item.properties?.websites?.[0] || item.website || null,
+      releaseYear: item.properties?.release_year || item.year,
+      relevanceScore: item.relevance_score || Math.random(),
+      metadata: {
+        type: item.type,
+        subtype: item.subtype,
+        external: item.external,
+        properties: item.properties
+      }
+    };
+  });
 }
 
 function extractRating(item) {
+  if (item.rating) return item.rating;
+  
   const ratings = [];
   
   if (item.external?.imdb?.[0]?.user_rating) {
@@ -892,66 +957,9 @@ function extractRating(item) {
     ratings.push(parseFloat(item.external.metacritic[0].user_rating) / 10);
   }
   
-  if (item.external?.rottentomatoes?.find(r => r.user_rating)) {
-    ratings.push(parseFloat(item.external.rottentomatoes.find(r => r.user_rating).user_rating) / 10);
-  }
-  
   return ratings.length 
     ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
     : (4.0 + Math.random() * 1.0).toFixed(1);
-}
-
-// Keep existing helper functions from original code
-async function processDiscoveriesData(apiData, userPreferences) {
-  const entities = apiData.results?.entities || apiData.entities || [];
-  
-  return entities.map((item, index) => {
-    const parseNumber = (val) => {
-      const num = typeof val === 'string' ? parseFloat(val) : val;
-      return isNaN(num) ? null : num;
-    };
-
-    // Extract ratings
-    const imdbRating = parseNumber(item.external?.imdb?.[0]?.user_rating);
-    const metacriticRating = parseNumber(item.external?.metacritic?.[0]?.user_rating);
-    const rtRating = parseNumber(item.external?.rottentomatoes?.find(r => r.user_rating)?.user_rating);
-
-    // Normalize ratings
-    const normalizedRatings = [
-      imdbRating,
-      metacriticRating ? metacriticRating / 10 : null,
-      rtRating ? rtRating / 10 : null
-    ].filter(r => r !== null);
-
-    const averageRating = normalizedRatings.length
-      ? (normalizedRatings.reduce((a, b) => a + b, 0) / normalizedRatings.length).toFixed(1)
-      : (4.0 + Math.random() * 1.0).toFixed(1);
-
-    const subtype = item.subtype?.split(':').pop();
-    const tags = Array.isArray(item.tags)
-      ? item.tags.map(tag => typeof tag === 'object' && tag.name ? tag.name : tag)
-      : ["Curated", "Cultural"];
-
-    return {
-      id: item.id,
-      title: item.name || `Discovery ${index + 1}`,
-      description: item.properties?.description || `Explore this ${subtype || 'cultural item'}.`,
-      category: subtype ? subtype.charAt(0).toUpperCase() + subtype.slice(1) : "Unknown",
-      rating: Number(averageRating),
-      trending: item.relevance_score ? item.relevance_score > 0.75 : Math.random() > 0.7,
-      image: item.properties?.image?.url || generateFallbackImage(index),
-      tags,
-      website: item.properties?.websites?.[0] || null,
-      releaseYear: item.properties?.release_year,
-      relevanceScore: item.relevance_score || Math.random(),
-      metadata: {
-        type: item.type,
-        subtype: item.subtype,
-        external: item.external,
-        properties: item.properties
-      }
-    };
-  });
 }
 
 function generateFallbackImage(index) {
@@ -973,7 +981,7 @@ function generateFallbackData(query) {
     'Creative Expressions', 'Modern Masterpieces', 'Timeless Classics'
   ];
   
-  return Array.from({ length: 10 }, (_, i) => ({
+  return Array.from({ length: parseInt(query.limit) || 10 }, (_, i) => ({
     id: `fallback-${i}`,
     title: titles[i % titles.length],
     description: `Discover amazing cultural content in ${categories[i % categories.length].toLowerCase()}.`,
