@@ -179,9 +179,9 @@ router.put('/profile', requireAuth, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        picture: user.picture,
+        picture: user.avatar,
         preferences: user.preferences,
-        culturalProfile: user.culturalProfile
+        culturalProfile: user.name
       }
     });
   } catch (error) {

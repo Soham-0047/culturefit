@@ -42,7 +42,7 @@ router.get('/status', (req, res) => {
         id: req.user._id,
         email: req.user.email,
         name: req.user.name,
-        picture: req.user.picture,
+        picture: req.user.avatar,
         preferences: req.user.preferences,
         culturalProfile: req.user.culturalProfile,
         memberSince: req.user.createdAt
@@ -66,7 +66,7 @@ router.get('/profile', requireAuth, async (req, res) => {
         id: user._id,
         email: user.email,
         name: user.name,
-        picture: user.picture,
+        picture: user.avatar,
         preferences: user.preferences,
         culturalProfile: user.culturalProfile,
         favorites: user.favorites,

@@ -22,10 +22,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { useAuth } from "@/hooks/useAuth";
 
 const Navigation = () => {
   const location = useLocation();
   const [hasNotifications, setHasNotifications] = useState(true);
+
+  const { 
+  user
+} = useAuth();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -78,7 +83,7 @@ const Navigation = () => {
     if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
   };
-
+  console.log(user?.picture)
   return (
     <nav className="glass-nav fixed top-0 left-0 right-0 z-50 h-16">
       <div className="container mx-auto flex items-center justify-between h-full px-6">
@@ -148,9 +153,9 @@ const Navigation = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="glass" size="sm" className="relative">
                   <Avatar className="w-8 h-8 border-2 border-primary/30 cursor-pointer">
-                    <AvatarImage src="/placeholder.svg" />
+                    <AvatarImage src={user && user?.picture} />
                     <AvatarFallback className="bg-gradient-primary text-white">
-                      CS
+                      {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>

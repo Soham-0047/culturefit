@@ -45,7 +45,7 @@ const Profile = () => {
   const [updating, setUpdating] = useState(false);
 
   // API base URL - adjust based on your setup
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = import.meta.env.VITE_APP_BACKEND_URL;
 
   // Fetch user data on component mount
   useEffect(() => {
@@ -87,7 +87,8 @@ const Profile = () => {
         }
         
         profile = await profileRes.json();
-        setUserProfile(profile);
+        console.log(profile,"Damru")
+        setUserProfile(profile.user);
       } catch (profileError) {
         console.error('Profile error:', profileError);
         // Set default profile if fetch fails
@@ -435,7 +436,7 @@ const Profile = () => {
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
                   <div className="relative">
                     <Avatar className="w-32 h-32 border-4 border-primary/30">
-                      <AvatarImage src={userProfile?.avatar || "/placeholder.svg"} />
+                      <AvatarImage src={userProfile?.picture || "/placeholder.svg"} />
                       <AvatarFallback className="bg-gradient-primary text-white text-2xl">
                         {userProfile?.name?.charAt(0) || "U"}
                       </AvatarFallback>
