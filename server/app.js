@@ -73,13 +73,43 @@ app.use(compression());
 app.use(morgan('combined'));
 
 // CORS configuration
+// app.use(cors({
+//   origin: ['http://localhost:3000', 'http://localhost:5173','http://localhost:8080',process.env.FRONTEND_URL],
+//   credentials: true,
+//   optionsSuccessStatus: 200,
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+//   exposedHeaders: ['Set-Cookie']
+// }));
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173','http://localhost:8080',process.env.FRONTEND_URL],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173', 
+      'http://localhost:8080',
+      'http://localhost:4173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:8080',
+      process.env.FRONTEND_URL
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['Set-Cookie']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
+  exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }));
 
 // Body parsing middleware
