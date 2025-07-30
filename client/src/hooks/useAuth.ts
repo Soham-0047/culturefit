@@ -211,7 +211,8 @@ export const useAuth = () => {
   }, [API_BASE_URL]);
 
   const checkAuthStatus = useCallback(async () => {
-    try {
+     try {
+      console.log('🔍 Checking auth status...');
       setAuthState(prev => ({ ...prev, loading: true, error: null }));
       
       const response = await fetch(`${API_BASE_URL}/auth/status`, {
@@ -222,12 +223,30 @@ export const useAuth = () => {
         },
       });
 
+      console.log('📡 Auth status response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
-        if (data.authenticated) {
-          // If authenticated, fetch full user data
-          await fetchUserData();
+        console.log('📦 Auth status data:', data);
+        
+        // Fix: Check for 'isAuthenticated' not 'authenticated'
+        if (data.isAuthenticated) {
+          console.log('✅ User is authenticated');
+          setAuthState(prev => ({
+            ...prev,
+            isAuthenticated: true,
+            user: data.user,
+            loading: false,
+            error: null,
+          }));
+          
+          // Optionally fetch additional user data
+          if (data.user) {
+            // You already have basic user data, but you might want to fetch more
+            await fetchUserData();
+          }
         } else {
+          console.log('❌ User is not authenticated');
           setAuthState({
             isAuthenticated: false,
             user: null,
@@ -240,6 +259,10 @@ export const useAuth = () => {
           });
         }
       } else {
+        console.error('❌ Auth status check failed:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        
         setAuthState({
           isAuthenticated: false,
           user: null,
@@ -248,10 +271,11 @@ export const useAuth = () => {
           favorites: [],
           recommendations: [],
           loading: false,
-          error: 'Failed to check authentication status',
+          error: `Failed to check authentication status: ${response.status}`,
         });
       }
     } catch (error) {
+      console.error('❌ Network error during auth check:', error);
       setAuthState({
         isAuthenticated: false,
         user: null,

@@ -53,25 +53,35 @@ router.get('/google/callback',
 
 // Check authentication status
 router.get('/status', (req, res) => {
-  if (req.isAuthenticated()) {
-    res.json({
-      authenticated: true,
-      user: {
-        id: req.user._id,
-        email: req.user.email,
-        name: req.user.name,
-        picture: req.user.avatar,
-        preferences: req.user.preferences,
-        culturalProfile: req.user.culturalProfile,
-        memberSince: req.user.createdAt
-      }
-    });
-  } else {
-    res.json({
-      authenticated: false,
-      user: null
-    });
-  }
+  console.log('=== AUTH STATUS CHECK ===');
+  console.log('Session ID:', req.sessionID);
+  console.log('Session exists:', !!req.session);
+  console.log('Is authenticated:', req.isAuthenticated());
+  console.log('User exists:', !!req.user);
+  console.log('User email:', req.user ? req.user.email : 'No user');
+  console.log('Cookie header:', req.headers.cookie);
+  console.log('Passport session:', req.session ? req.session.passport : 'No passport session');
+  
+  const isAuthenticated = req.isAuthenticated();
+  
+  const response = {
+    isAuthenticated, // Make sure this matches what frontend expects
+    user: isAuthenticated && req.user ? {
+      id: req.user._id,
+      email: req.user.email,
+      name: req.user.name,
+      avatar: req.user.avatar
+    } : null,
+    sessionId: req.sessionID,
+    debug: {
+      hasSession: !!req.session,
+      hasCookie: !!req.headers.cookie,
+      passportSession: req.session ? !!req.session.passport : false
+    }
+  };
+
+  console.log('Response being sent:', response);
+  res.json(response);
 });
 
 // Get current user profile
