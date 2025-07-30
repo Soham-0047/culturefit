@@ -112,11 +112,10 @@ app.use(session({
     touchAfter: 24 * 3600
   }),
   cookie: {
-    secure: true,           // Must be true for Render (HTTPS)
-    httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    sameSite: 'none',       // Required for cross-origin cookies
-    domain: undefined       // Don't set domain to allow cross-origin
+      secure: false,        // ⚠️ Temporarily set to false for testing
+    httpOnly: false,      // ⚠️ Temporarily set to false for testing
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+    sameSite: 'lax'      
   }
 }));
 
