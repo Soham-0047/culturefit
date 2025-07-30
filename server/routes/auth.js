@@ -20,11 +20,15 @@ router.get('/google/callback',
   }),
   async (req, res) => {
     try {
-      console.log('=== CALLBACK START ===');
-      console.log('req.user:', req.user ? req.user.email : 'NO USER');
+      console.log('=== OAUTH CALLBACK START ===');
+      console.log('req.user:', req.user ? {
+        id: req.user._id,
+        email: req.user.email,
+        name: req.user.name
+      } : 'NO USER');
       console.log('req.isAuthenticated():', req.isAuthenticated());
-      console.log('req.session:', req.session ? 'EXISTS' : 'NO SESSION');
-      console.log('req.sessionID:', req.sessionID);
+      console.log('req.session before save:', req.session);
+      console.log('req.session.passport:', req.session?.passport);
 
       if (!req.user) {
         console.error('❌ No user found in callback');
@@ -37,13 +41,27 @@ router.get('/google/callback',
         $inc: { loginCount: 1 }
       });
 
-      console.log('✅ User updated, redirecting to frontend');
-      console.log('Redirect URL:', `${process.env.FRONTEND_URL}/discover?auth=success`);
+      console.log('✅ User updated');
       
-      // Redirect to frontend with success
+      // Explicitly save the session and wait for it
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error('❌ Session save error:', err);
+            reject(err);
+          } else {
+            console.log('✅ Session saved successfully');
+            console.log('Session after save:', req.session);
+            console.log('Session passport after save:', req.session?.passport);
+            resolve();
+          }
+        });
+      });
+      
+      console.log('Redirecting to:', `${process.env.FRONTEND_URL}/discover?auth=success`);
       res.redirect(`${process.env.FRONTEND_URL}/discover?auth=success`);
+      console.log('=== OAUTH CALLBACK END ===');
       
-      console.log('=== CALLBACK END ===');
     } catch (error) {
       console.error('❌ Auth callback error:', error);
       res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=server_error`);
@@ -534,4 +552,30 @@ router.get('/cookie-check', (req, res) => {
     }
   });
 });
+
+// Add this debug endpoint to check Passport session state
+router.get('/session-debug', (req, res) => {
+  console.log('=== SESSION DEBUG ===');
+  console.log('Session ID:', req.sessionID);
+  console.log('Session data:', req.session);
+  console.log('Session passport:', req.session?.passport);
+  console.log('req.user:', req.user);
+  console.log('req.isAuthenticated():', req.isAuthenticated());
+  console.log('Session store:', req.sessionStore ? 'exists' : 'missing');
+  
+  res.json({
+    sessionID: req.sessionID,
+    sessionData: req.session,
+    passportSession: req.session?.passport,
+    user: req.user,
+    isAuthenticated: req.isAuthenticated(),
+    debug: {
+      hasSession: !!req.session,
+      hasPassportData: !!(req.session?.passport),
+      passportUser: req.session?.passport?.user,
+      sessionKeys: req.session ? Object.keys(req.session) : []
+    }
+  });
+});
+
 module.exports = router;
