@@ -13,6 +13,7 @@ router.get('/google',
 );
 
 // Google OAuth callback
+// Enhanced OAuth callback - replace your existing one
 router.get('/google/callback',
   passport.authenticate('google', { 
     failureRedirect: `${process.env.FRONTEND_URL}/?auth=failed`,
@@ -21,29 +22,33 @@ router.get('/google/callback',
   async (req, res) => {
     try {
       console.log('=== OAUTH CALLBACK START ===');
-      console.log('req.user:', req.user ? {
+      console.log('✅ Passport authentication successful');
+      console.log('req.user exists:', !!req.user);
+      console.log('req.user details:', req.user ? {
         id: req.user._id,
         email: req.user.email,
-        name: req.user.name
+        name: req.user.name,
+        googleId: req.user.googleId
       } : 'NO USER');
-      console.log('req.isAuthenticated():', req.isAuthenticated());
-      console.log('req.session before save:', req.session);
-      console.log('req.session.passport:', req.session?.passport);
+      console.log('req.isAuthenticated() before save:', req.isAuthenticated());
+      console.log('Session before save:', JSON.stringify(req.session, null, 2));
+      console.log('Session.passport before save:', req.session?.passport);
 
       if (!req.user) {
-        console.error('❌ No user found in callback');
+        console.error('❌ No user found in callback after passport authentication');
         return res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=no_user`);
       }
 
       // Update user's last login
-      await User.findByIdAndUpdate(req.user._id, {
+      const updatedUser = await User.findByIdAndUpdate(req.user._id, {
         lastLogin: new Date(),
         $inc: { loginCount: 1 }
-      });
+      }, { new: true });
 
-      console.log('✅ User updated');
+      console.log('✅ User updated in database:', updatedUser ? 'success' : 'failed');
       
-      // Explicitly save the session and wait for it
+      // Force session save and wait
+      console.log('💾 Saving session...');
       await new Promise((resolve, reject) => {
         req.session.save((err) => {
           if (err) {
@@ -51,19 +56,25 @@ router.get('/google/callback',
             reject(err);
           } else {
             console.log('✅ Session saved successfully');
-            console.log('Session after save:', req.session);
-            console.log('Session passport after save:', req.session?.passport);
+            console.log('Session after save:', JSON.stringify(req.session, null, 2));
+            console.log('Session.passport after save:', req.session?.passport);
+            console.log('req.isAuthenticated() after save:', req.isAuthenticated());
             resolve();
           }
         });
       });
       
-      console.log('Redirecting to:', `${process.env.FRONTEND_URL}/discover?auth=success`);
+      // Small delay to ensure session is persisted
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('🚀 Redirecting to frontend...');
+      console.log('Redirect URL:', `${process.env.FRONTEND_URL}/discover?auth=success`);
       res.redirect(`${process.env.FRONTEND_URL}/discover?auth=success`);
       console.log('=== OAUTH CALLBACK END ===');
       
     } catch (error) {
       console.error('❌ Auth callback error:', error);
+      console.error('Error stack:', error.stack);
       res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=server_error`);
     }
   }
@@ -553,15 +564,19 @@ router.get('/cookie-check', (req, res) => {
   });
 });
 
-// Add this debug endpoint to check Passport session state
+
+// Debug session state
 router.get('/session-debug', (req, res) => {
   console.log('=== SESSION DEBUG ===');
   console.log('Session ID:', req.sessionID);
-  console.log('Session data:', req.session);
+  console.log('Session data:', JSON.stringify(req.session, null, 2));
   console.log('Session passport:', req.session?.passport);
-  console.log('req.user:', req.user);
+  console.log('req.user:', req.user ? {
+    id: req.user._id,
+    email: req.user.email,
+    name: req.user.name
+  } : 'NO USER');
   console.log('req.isAuthenticated():', req.isAuthenticated());
-  console.log('Session store:', req.sessionStore ? 'exists' : 'missing');
   
   res.json({
     sessionID: req.sessionID,
@@ -573,9 +588,44 @@ router.get('/session-debug', (req, res) => {
       hasSession: !!req.session,
       hasPassportData: !!(req.session?.passport),
       passportUser: req.session?.passport?.user,
-      sessionKeys: req.session ? Object.keys(req.session) : []
+      sessionKeys: req.session ? Object.keys(req.session) : [],
+      userFromPassport: req.user ? 'exists' : 'missing'
     }
   });
+});
+
+// Test endpoint to manually set session (for testing)
+router.get('/test-session', async (req, res) => {
+  try {
+    // Find any user for testing
+    const testUser = await User.findOne();
+    if (!testUser) {
+      return res.json({ error: 'No users found in database' });
+    }
+
+    // Manually log in this user
+    req.login(testUser, (err) => {
+      if (err) {
+        console.error('Manual login error:', err);
+        return res.json({ error: 'Failed to manually log in user', details: err.message });
+      }
+      
+      console.log('✅ Manually logged in user:', testUser.email);
+      res.json({
+        success: true,
+        message: 'User manually logged in',
+        user: {
+          id: testUser._id,
+          email: testUser.email,
+          name: testUser.name
+        },
+        isAuthenticated: req.isAuthenticated()
+      });
+    });
+  } catch (error) {
+    console.error('Test session error:', error);
+    res.json({ error: 'Test session failed', details: error.message });
+  }
 });
 
 module.exports = router;
