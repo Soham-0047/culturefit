@@ -139,13 +139,15 @@ app.use(session({
   saveUninitialized: false,
   store: MongoStore.create({
     mongoUrl: process.env.MONGODB_URI,
-    touchAfter: 24 * 3600
+    touchAfter: 24 * 3600,
+     ttl: 14 * 24 * 60 * 60, // 14 days
+  autoRemove: 'native'
   }),
   cookie: {
-      secure: false,        // ⚠️ Temporarily set to false for testing
-    httpOnly: false,      // ⚠️ Temporarily set to false for testing
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-    sameSite: 'lax'      
+    secure: true,           // ✅ Required on HTTPS (Render)
+    httpOnly: true,         // ✅ Protects from JS access
+    sameSite: 'none',       // ✅ Allow cookies across localhost + render
+    maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
   }
 }));
 
