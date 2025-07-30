@@ -12,23 +12,41 @@ router.get('/google',
   })
 );
 
+// Google OAuth callback
 router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/' }),
+  passport.authenticate('google', { 
+    failureRedirect: `${process.env.FRONTEND_URL}/?auth=failed`,
+    failureMessage: true 
+  }),
   async (req, res) => {
     try {
+      console.log('=== CALLBACK START ===');
+      console.log('req.user:', req.user ? req.user.email : 'NO USER');
+      console.log('req.isAuthenticated():', req.isAuthenticated());
+      console.log('req.session:', req.session ? 'EXISTS' : 'NO SESSION');
+      console.log('req.sessionID:', req.sessionID);
+
+      if (!req.user) {
+        console.error('❌ No user found in callback');
+        return res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=no_user`);
+      }
+
       // Update user's last login
       await User.findByIdAndUpdate(req.user._id, {
         lastLogin: new Date(),
         $inc: { loginCount: 1 }
       });
 
-      // Redirect to frontend with success
-      const redirectUrl = `${process.env.FRONTEND_URL}/discover`;
+      console.log('✅ User updated, redirecting to frontend');
+      console.log('Redirect URL:', `${process.env.FRONTEND_URL}/discover?auth=success`);
       
-      res.redirect(redirectUrl);
+      // Redirect to frontend with success
+      res.redirect(`${process.env.FRONTEND_URL}/discover?auth=success`);
+      
+      console.log('=== CALLBACK END ===');
     } catch (error) {
-      console.error('Auth callback error:', error);
-      res.redirect('/');
+      console.error('❌ Auth callback error:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=server_error`);
     }
   }
 );
