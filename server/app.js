@@ -74,11 +74,12 @@ app.use(morgan('combined'));
 
 // CORS configuration
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173','http://localhost:8080',`${process.env.FRONTEND_URL}`],
+  origin: ['http://localhost:3000', 'http://localhost:5173','http://localhost:8080',process.env.FRONTEND_URL],
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['Set-Cookie']
 }));
 
 // Body parsing middleware
@@ -86,19 +87,36 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Session configuration
+// app.use(session({
+//   secret: process.env.SESSION_SECRET,
+//   resave: false,
+//   saveUninitialized: false,
+//   store: MongoStore.create({
+//     mongoUrl: process.env.MONGODB_URI,
+//     touchAfter: 24 * 3600 // lazy session update
+//   }),
+//   cookie: {
+//     secure: true,
+//     httpOnly: true,
+//     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+//     sameSite: 'none'
+//   }
+// }));
+
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({
     mongoUrl: process.env.MONGODB_URI,
-    touchAfter: 24 * 3600 // lazy session update
+    touchAfter: 24 * 3600
   }),
   cookie: {
-    secure: true,
+    secure: true,           // Must be true for Render (HTTPS)
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    sameSite: 'none'
+    sameSite: 'none',       // Required for cross-origin cookies
+    domain: undefined       // Don't set domain to allow cross-origin
   }
 }));
 

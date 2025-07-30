@@ -471,4 +471,67 @@ router.delete('/account', requireAuth, async (req, res) => {
   }
 });
 
+
+// Add this to your routes/auth.js file
+
+// Cookie test endpoint
+router.get('/cookie-test', (req, res) => {
+  console.log('=== COOKIE TEST ===');
+  console.log('Request headers:', req.headers);
+  console.log('Received cookies:', req.headers.cookie || 'No cookies');
+  console.log('Session ID:', req.sessionID);
+  console.log('Session exists:', !!req.session);
+  console.log('Is authenticated:', req.isAuthenticated ? req.isAuthenticated() : false);
+  
+  // Set a test cookie
+  res.cookie('test-cookie', 'test-value-' + Date.now(), {
+    secure: true,
+    httpOnly: true,
+    sameSite: 'none',
+    maxAge: 60000 // 1 minute
+  });
+  
+  // Also set a simple cookie for comparison
+  res.cookie('simple-test', 'simple-value', {
+    maxAge: 60000
+  });
+  
+  res.json({
+    success: true,
+    message: 'Test cookies set successfully',
+    debug: {
+      receivedCookies: req.headers.cookie || 'No cookies received',
+      userAgent: req.headers['user-agent'],
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      sessionInfo: {
+        sessionID: req.sessionID,
+        sessionExists: !!req.session,
+        isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false,
+        user: req.user ? req.user.email : null
+      },
+      cookiesBeingSet: [
+        'test-cookie (secure, httpOnly, sameSite=none)',
+        'simple-test (basic cookie)'
+      ]
+    }
+  });
+});
+
+// Second endpoint to check if cookies were received
+router.get('/cookie-check', (req, res) => {
+  console.log('=== COOKIE CHECK ===');
+  console.log('All cookies received:', req.headers.cookie);
+  
+  res.json({
+    success: true,
+    cookiesReceived: req.headers.cookie || 'No cookies',
+    parsedCookies: req.cookies || {},
+    sessionInfo: {
+      sessionID: req.sessionID,
+      sessionExists: !!req.session,
+      isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false
+    }
+  });
+});
 module.exports = router;
