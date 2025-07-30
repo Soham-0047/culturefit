@@ -83,7 +83,6 @@ export const useAuth = () => {
         }
         
         const profileData = await profileRes.json();
-        console.log(profileData, "Damru");
         profile = profileData.user;
       } catch (profileError) {
         console.error('Profile error:', profileError);

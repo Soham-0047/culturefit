@@ -308,7 +308,7 @@ router.put('/cultural-profile', requireAuth, async (req, res) => {
 // Add to favorites
 router.post('/favorites', requireAuth, async (req, res) => {
   try {
-    const { itemId, itemType, title, description, image } = req.body;
+    const { itemId, itemType, title, description, image, url, category, tags} = req.body;
     
     if (!itemId || !itemType || !title) {
       return res.status(400).json({
@@ -337,6 +337,9 @@ router.post('/favorites', requireAuth, async (req, res) => {
       title,
       description,
       image,
+      url,
+      category,
+      tags,
       addedAt: new Date()
     });
 

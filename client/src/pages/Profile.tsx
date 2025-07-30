@@ -1,28 +1,34 @@
 import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  User, 
-  Settings, 
-  Heart, 
-  Star, 
-  TrendingUp, 
-  Calendar, 
-  Bell, 
-  Eye, 
+import {
+  User,
+  Settings,
+  Heart,
+  Star,
+  TrendingUp,
+  Calendar,
+  Bell,
+  Eye,
   MessageSquare,
   Edit,
   Loader2,
   RefreshCw,
   ExternalLink,
-  X
+  X,
 } from "lucide-react";
 import UserPreferencesForm from "@/components/UserPresencesForm";
 
@@ -35,8 +41,7 @@ const Profile = () => {
   const [userAnalytics, setUserAnalytics] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
-    const [showForm, setShowForm] = useState(false);
-
+  const [showForm, setShowForm] = useState(false);
 
   // Settings state
   const [notifications, setNotifications] = useState(true);
@@ -58,62 +63,62 @@ const Profile = () => {
       setError(null);
 
       // First check authentication status
-      const authCheck = await fetch(`${API_BASE}/auth/status`, { 
-        credentials: 'include',
+      const authCheck = await fetch(`${API_BASE}/auth/status`, {
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
-        }
+          "Content-Type": "application/json",
+        },
       });
 
       if (!authCheck.ok) {
-        throw new Error('Not authenticated. Please log in.');
+        throw new Error("Not authenticated. Please log in.");
       }
 
       // Fetch user profile first (most critical)
       let profile, preferences, analytics, favoritesData, recommendationsData;
 
       try {
-        const profileRes = await fetch(`${API_BASE}/auth/profile`, { 
-          credentials: 'include',
+        const profileRes = await fetch(`${API_BASE}/auth/profile`, {
+          credentials: "include",
           headers: {
-            'Content-Type': 'application/json',
-          }
+            "Content-Type": "application/json",
+          },
         });
-        
+
         if (!profileRes.ok) {
           const errorText = await profileRes.text();
-          console.error('Profile fetch error:', errorText);
+          console.error("Profile fetch error:", errorText);
           throw new Error(`Profile fetch failed: ${profileRes.status}`);
         }
-        
+
         profile = await profileRes.json();
-        console.log(profile,"Damru")
+        console.log(profile, "Damru");
         setUserProfile(profile.user);
       } catch (profileError) {
-        console.error('Profile error:', profileError);
+        console.error("Profile error:", profileError);
         // Set default profile if fetch fails
         profile = {
-          name: 'Cultural Explorer',
-          bio: 'Welcome to your cultural journey',
+          name: "Cultural Explorer",
+          bio: "Welcome to your cultural journey",
           avatar: null,
-          tier: 'Explorer'
+          tier: "Explorer",
         };
         setUserProfile(profile);
       }
 
       // Fetch preferences with fallback
       try {
-        const preferencesRes = await fetch(`${API_BASE}/auth/preferences`, { 
-          credentials: 'include',
+        const preferencesRes = await fetch(`${API_BASE}/auth/preferences`, {
+          credentials: "include",
           headers: {
-            'Content-Type': 'application/json',
-          }
+            "Content-Type": "application/json",
+          },
         });
-        
+
         if (preferencesRes.ok) {
           preferences = await preferencesRes.json();
           setUserPreferences(preferences);
-          
+
           // Set settings from preferences
           if (preferences.settings) {
             setNotifications(preferences.settings.notifications ?? true);
@@ -121,83 +126,87 @@ const Profile = () => {
             setAiInsights(preferences.settings.aiInsights ?? true);
           }
         } else {
-          throw new Error('Preferences not found');
+          throw new Error("Preferences not found");
         }
       } catch (prefError) {
-        console.error('Preferences error:', prefError);
+        console.error("Preferences error:", prefError);
         // Set default preferences
         preferences = {
           culturalProfile: {},
           settings: {
             notifications: true,
             publicProfile: false,
-            aiInsights: true
-          }
+            aiInsights: true,
+          },
         };
         setUserPreferences(preferences);
       }
 
       // Fetch optional data (non-critical)
       try {
-        const analyticsRes = await fetch(`${API_BASE}/user/analytics`, { 
-          credentials: 'include',
+        const analyticsRes = await fetch(`${API_BASE}/user/analytics`, {
+          credentials: "include",
           headers: {
-            'Content-Type': 'application/json',
-          }
+            "Content-Type": "application/json",
+          },
         });
         analytics = analyticsRes.ok ? await analyticsRes.json() : { stats: {} };
         setUserAnalytics(analytics);
       } catch (analyticsError) {
-        console.error('Analytics error:', analyticsError);
+        console.error("Analytics error:", analyticsError);
         setUserAnalytics({ stats: {} });
       }
 
       try {
-        const favoritesRes = await fetch(`${API_BASE}/user/favorites`, { 
-          credentials: 'include',
+        const favoritesRes = await fetch(`${API_BASE}/user/favorites`, {
+          credentials: "include",
           headers: {
-            'Content-Type': 'application/json',
-          }
+            "Content-Type": "application/json",
+          },
         });
         favoritesData = favoritesRes.ok ? await favoritesRes.json() : [];
-        setFavorites(favoritesData);
+        setFavorites(favoritesData.favorites);
       } catch (favError) {
-        console.error('Favorites error:', favError);
+        console.error("Favorites error:", favError);
         setFavorites([]);
       }
 
       try {
-        const recommendationsRes = await fetch(`${API_BASE}/user/recommendations`, { 
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
+        const recommendationsRes = await fetch(
+          `${API_BASE}/user/recommendations`,
+          {
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
           }
-        });
-        recommendationsData = recommendationsRes.ok ? await recommendationsRes.json() : [];
+        );
+        recommendationsData = recommendationsRes.ok
+          ? await recommendationsRes.json()
+          : [];
         setRecommendations(recommendationsData);
       } catch (recError) {
-        console.error('Recommendations error:', recError);
+        console.error("Recommendations error:", recError);
         setRecommendations([]);
       }
-
     } catch (err) {
       setError(err.message);
-      console.error('Error fetching user data:', err);
-      
+      console.error("Error fetching user data:", err);
+
       // Set minimal fallback data so component still renders
       setUserProfile({
-        name: 'Guest User',
-        bio: 'Please log in to view your profile',
+        name: "Guest User",
+        bio: "Please log in to view your profile",
         avatar: null,
-        tier: 'Guest'
+        tier: "Guest",
       });
       setUserPreferences({
         culturalProfile: {},
         settings: {
           notifications: true,
           publicProfile: false,
-          aiInsights: true
-        }
+          aiInsights: true,
+        },
       });
       setUserAnalytics({ stats: {} });
       setFavorites([]);
@@ -211,23 +220,23 @@ const Profile = () => {
     try {
       setUpdating(true);
       const response = await fetch(`${API_BASE}/auth/preferences`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        credentials: 'include',
-        body: JSON.stringify(updates)
+        credentials: "include",
+        body: JSON.stringify(updates),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update preferences');
+        throw new Error("Failed to update preferences");
       }
 
       const updatedPreferences = await response.json();
       setUserPreferences(updatedPreferences);
     } catch (err) {
-      console.error('Error updating preferences:', err);
-      setError('Failed to update preferences');
+      console.error("Error updating preferences:", err);
+      setError("Failed to update preferences");
     } finally {
       setUpdating(false);
     }
@@ -237,19 +246,19 @@ const Profile = () => {
     const updates = {
       settings: {
         ...userPreferences?.settings,
-        [setting]: value
-      }
+        [setting]: value,
+      },
     };
 
     // Update local state immediately for better UX
     switch (setting) {
-      case 'notifications':
+      case "notifications":
         setNotifications(value);
         break;
-      case 'publicProfile':
+      case "publicProfile":
         setPublicProfile(value);
         break;
-      case 'aiInsights':
+      case "aiInsights":
         setAiInsights(value);
         break;
     }
@@ -262,82 +271,104 @@ const Profile = () => {
   const generateStats = () => {
     if (!userAnalytics?.stats) {
       return [
-        { label: "Cultural Discoveries", value: "0", icon: <Heart className="w-5 h-5" /> },
-        { label: "AI Conversations", value: "0", icon: <MessageSquare className="w-5 h-5" /> },
-        { label: "Trend Predictions", value: "0%", icon: <TrendingUp className="w-5 h-5" /> },
-        { label: "Profile Views", value: "0", icon: <Eye className="w-5 h-5" /> }
+        {
+          label: "Cultural Discoveries",
+          value: "0",
+          icon: <Heart className="w-5 h-5" />,
+        },
+        {
+          label: "AI Conversations",
+          value: "0",
+          icon: <MessageSquare className="w-5 h-5" />,
+        },
+        {
+          label: "Trend Predictions",
+          value: "0%",
+          icon: <TrendingUp className="w-5 h-5" />,
+        },
+        {
+          label: "Profile Views",
+          value: "0",
+          icon: <Eye className="w-5 h-5" />,
+        },
       ];
     }
 
     const stats = userAnalytics.stats;
     return [
-      { 
-        label: "Cultural Discoveries", 
-        value: stats.totalDiscoveries?.toLocaleString() || "0", 
-        icon: <Heart className="w-5 h-5" /> 
+      {
+        label: "Cultural Discoveries",
+        value: stats.totalDiscoveries?.toLocaleString() || "0",
+        icon: <Heart className="w-5 h-5" />,
       },
-      { 
-        label: "AI Conversations", 
-        value: stats.totalConversations?.toString() || "0", 
-        icon: <MessageSquare className="w-5 h-5" /> 
+      {
+        label: "AI Conversations",
+        value: stats.totalConversations?.toString() || "0",
+        icon: <MessageSquare className="w-5 h-5" />,
       },
-      { 
-        label: "Recommendation Accuracy", 
-        value: `${stats.recommendationAccuracy || 0}%`, 
-        icon: <TrendingUp className="w-5 h-5" /> 
+      {
+        label: "Recommendation Accuracy",
+        value: `${stats.recommendationAccuracy || 0}%`,
+        icon: <TrendingUp className="w-5 h-5" />,
       },
-      { 
-        label: "Profile Views", 
-        value: stats.profileViews ? (stats.profileViews > 1000 ? `${(stats.profileViews/1000).toFixed(1)}K` : stats.profileViews.toString()) : "0", 
-        icon: <Eye className="w-5 h-5" /> 
-      }
+      {
+        label: "Profile Views",
+        value: stats.profileViews
+          ? stats.profileViews > 1000
+            ? `${(stats.profileViews / 1000).toFixed(1)}K`
+            : stats.profileViews.toString()
+          : "0",
+        icon: <Eye className="w-5 h-5" />,
+      },
     ];
   };
 
-
   function generateUserPreferencesWithStrengths(userPreference) {
-  function getRandomStrength(max = 100) {
-    return Math.floor(Math.random() * max);
+    function getRandomStrength(max = 100) {
+      return Math.floor(Math.random() * max);
+    }
+
+    const colorPalette = [
+      "bg-primary",
+      "bg-secondary",
+      "bg-accent-rose",
+      "bg-accent-amber",
+      "bg-accent-purple",
+      "bg-accent-green",
+      "bg-accent-blue",
+      "bg-accent-cyan",
+      "bg-accent-pink",
+      "bg-muted",
+    ];
+    const combinedItems = [
+      ...(userPreference.categories || []),
+      ...(userPreference.favoriteGenres || []),
+    ];
+
+    const preferences = combinedItems
+      .map((item, index) => ({
+        category: item.charAt(0).toUpperCase() + item.slice(1),
+        strength: getRandomStrength(),
+        color: colorPalette[index % colorPalette.length],
+      }))
+      .filter((pref) => pref.strength > 0);
+
+    return preferences;
   }
-
-  const colorPalette = [
-    "bg-primary",
-    "bg-secondary",
-    "bg-accent-rose",
-    "bg-accent-amber",
-    "bg-accent-purple",
-    "bg-accent-green",
-    "bg-accent-blue",
-    "bg-accent-cyan",
-    "bg-accent-pink",
-    "bg-muted"
-  ];
-  const combinedItems = [
-    ...(userPreference.categories || []),
-    ...(userPreference.favoriteGenres || [])
-  ];
-
-  const preferences = combinedItems.map((item, index) => ({
-    category: item.charAt(0).toUpperCase() + item.slice(1),
-    strength: getRandomStrength(),
-    color: colorPalette[index % colorPalette.length]
-  })).filter(pref => pref.strength > 0);
-
-  return preferences;
-}
-
 
   // Generate recent activity from recommendations and favorites
   const generateRecentActivity = () => {
     const activities = [];
-    
+
     // Add recent recommendations
     if (recommendations.length > 0) {
       recommendations.slice(0, 2).forEach((rec, index) => {
         activities.push({
-          description: `Discovered ${rec.title || 'new recommendation'}`,
-          time: rec.createdAt ? new Date(rec.createdAt).toLocaleDateString() : 'Recently',
-          color: index === 0 ? 'bg-secondary' : 'bg-accent-rose'
+          description: `Discovered ${rec.title || "new recommendation"}`,
+          time: rec.createdAt
+            ? new Date(rec.createdAt).toLocaleDateString()
+            : "Recently",
+          color: index === 0 ? "bg-secondary" : "bg-accent-rose",
         });
       });
     }
@@ -346,9 +377,11 @@ const Profile = () => {
     if (favorites.length > 0) {
       favorites.slice(0, 2).forEach((fav, index) => {
         activities.push({
-          description: `Added ${fav.title || 'item'} to favorites`,
-          time: fav.addedAt ? new Date(fav.addedAt).toLocaleDateString() : 'Recently',
-          color: index === 0 ? 'bg-accent-amber' : 'bg-primary'
+          description: `Added ${fav.title || "item"} to favorites`,
+          time: fav.addedAt
+            ? new Date(fav.addedAt).toLocaleDateString()
+            : "Recently",
+          color: index === 0 ? "bg-accent-amber" : "bg-primary",
         });
       });
     }
@@ -359,13 +392,13 @@ const Profile = () => {
         {
           description: "Welcome to your cultural journey",
           time: "Today",
-          color: "bg-primary"
+          color: "bg-primary",
         },
         {
           description: "Start exploring to see activity",
           time: "Get started",
-          color: "bg-secondary"
-        }
+          color: "bg-secondary",
+        },
       ];
     }
 
@@ -381,7 +414,9 @@ const Profile = () => {
             <div className="flex items-center justify-center h-96">
               <div className="text-center">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-                <p className="text-muted-foreground">Loading your cultural profile...</p>
+                <p className="text-muted-foreground">
+                  Loading your cultural profile...
+                </p>
               </div>
             </div>
           </div>
@@ -391,7 +426,6 @@ const Profile = () => {
   }
 
   const stats = generateStats();
-  console.log(userPreferences)
   const preferences = generateUserPreferencesWithStrengths(userPreferences);
   const recentActivity = generateRecentActivity();
 
@@ -404,9 +438,9 @@ const Profile = () => {
             <Alert className="max-w-md mx-auto mt-8">
               <AlertDescription>
                 {error}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="ml-2"
                   onClick={() => fetchUserData()}
                 >
@@ -420,10 +454,7 @@ const Profile = () => {
       </div>
     );
   }
-
-  
-
-  console.log(userPreferences,userProfile,"Profile")
+  console.log(favorites, "Laduba");
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -436,14 +467,16 @@ const Profile = () => {
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
                   <div className="relative">
                     <Avatar className="w-32 h-32 border-4 border-primary/30">
-                      <AvatarImage src={userProfile?.picture || "/placeholder.svg"} />
+                      <AvatarImage
+                        src={userProfile?.picture || "/placeholder.svg"}
+                      />
                       <AvatarFallback className="bg-gradient-primary text-white text-2xl">
                         {userProfile?.name?.charAt(0) || "U"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="status-online w-6 h-6 rounded-full absolute -bottom-1 -right-1 border-2 border-card"></div>
                   </div>
-                  
+
                   <div className="flex-1 text-center md:text-left">
                     <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
                       <h1 className="text-3xl font-bold text-foreground">
@@ -454,32 +487,40 @@ const Profile = () => {
                         {userProfile?.tier || "Explorer"}
                       </Badge>
                     </div>
-                    
+
                     <p className="text-muted-foreground mb-6 max-w-2xl">
-                      {userProfile?.bio || "AI-powered cultural analyst with a passion for discovering emerging trends and connecting diverse artistic expressions."}
+                      {userProfile?.bio ||
+                        "AI-powered cultural analyst with a passion for discovering emerging trends and connecting diverse artistic expressions."}
                     </p>
-                    
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                       {stats.map((stat, index) => (
                         <div key={index} className="text-center">
                           <div className="flex items-center justify-center text-primary mb-2">
                             {stat.icon}
                           </div>
-                          <div className="text-xl font-bold text-foreground">{stat.value}</div>
-                          <div className="text-xs text-muted-foreground">{stat.label}</div>
+                          <div className="text-xl font-bold text-foreground">
+                            {stat.value}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {stat.label}
+                          </div>
                         </div>
                       ))}
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center gap-3">
-                      <Button variant="default" onClick={() => setShowForm(true)}>
+                      <Button
+                        variant="default"
+                        onClick={() => setShowForm(true)}
+                      >
                         <Settings className="w-4 h-4 mr-2" />
                         Preferences
                       </Button>
-                      <Button variant="glass">
+                      {/* <Button variant="glass">
                         <ExternalLink className="w-4 h-4 mr-2" />
                         Share Profile
-                      </Button>
+                      </Button> */}
                     </div>
                   </div>
                 </div>
@@ -498,23 +539,31 @@ const Profile = () => {
                     Cultural Taste Profile
                   </CardTitle>
                   <CardDescription>
-                    Your preference strength across different cultural categories
+                    Your preference strength across different cultural
+                    categories
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {preferences.length > 0 ? preferences.map((pref, index) => (
-                    <div key={index} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-foreground">{pref.category}</span>
-                        <span className="text-sm text-muted-foreground">{pref.strength}%</span>
+                  {preferences.length > 0 ? (
+                    preferences.map((pref, index) => (
+                      <div key={index} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-foreground">
+                            {pref.category}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {pref.strength}%
+                          </span>
+                        </div>
+                        <Progress value={pref.strength} className="h-2" />
                       </div>
-                      <Progress value={pref.strength} className="h-2" />
-                    </div>
-                  )) : (
+                    ))
+                  ) : (
                     <div className="text-center py-8">
                       <Heart className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
                       <p className="text-muted-foreground">
-                        Start exploring cultural content to build your taste profile
+                        Start exploring cultural content to build your taste
+                        profile
                       </p>
                     </div>
                   )}
@@ -536,18 +585,56 @@ const Profile = () => {
                   {favorites.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {favorites.slice(0, 4).map((favorite, index) => (
-                        <div key={index} className="flex items-center gap-3 p-3 rounded-lg border bg-card/50">
-                          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <Heart className="w-5 h-5 text-primary" />
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 rounded-lg border bg-card/50 hover:bg-card/70 transition-colors"
+                        >
+                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-primary/10 flex-shrink-0">
+                            {favorite.image ? (
+                              <img
+                                src={favorite.image}
+                                alt={favorite.title}
+                                className="w-full h-full object-cover"
+                                onError={(e: any) => {
+                                  e.target.style.display = "none";
+                                  e.target.nextSibling.style.display = "flex";
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className="w-full h-full flex items-center justify-center"
+                              style={{
+                                display: favorite.image ? "none" : "flex",
+                              }}
+                            >
+                              <Heart className="w-6 h-6 text-primary" />
+                            </div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
+                            <p className="text-sm font-medium text-foreground truncate mb-1">
                               {favorite.title || "Cultural Item"}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {favorite.category || "Culture"}
+                            <p className="text-xs text-muted-foreground mb-1">
+                              {favorite.category ||
+                                favorite.itemType ||
+                                "Culture"}
                             </p>
+                            {favorite.description && (
+                              <p className="text-xs text-muted-foreground/80 line-clamp-2">
+                                {favorite.description}
+                              </p>
+                            )}
                           </div>
+                          {favorite.url && (
+                            <a
+                              href={favorite.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:text-primary/80 transition-colors"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -584,15 +671,17 @@ const Profile = () => {
                         Receive AI insights and recommendations
                       </p>
                     </div>
-                    <Switch 
-                      checked={notifications} 
-                      onCheckedChange={(value) => handleSettingChange('notifications', value)}
+                    <Switch
+                      checked={notifications}
+                      onCheckedChange={(value) =>
+                        handleSettingChange("notifications", value)
+                      }
                       disabled={updating}
                     />
                   </div>
-                  
+
                   <Separator />
-                  
+
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <label className="text-sm font-medium text-foreground">
@@ -602,15 +691,17 @@ const Profile = () => {
                         Allow others to discover your taste profile
                       </p>
                     </div>
-                    <Switch 
-                      checked={publicProfile} 
-                      onCheckedChange={(value) => handleSettingChange('publicProfile', value)}
+                    <Switch
+                      checked={publicProfile}
+                      onCheckedChange={(value) =>
+                        handleSettingChange("publicProfile", value)
+                      }
                       disabled={updating}
                     />
                   </div>
-                  
+
                   <Separator />
-                  
+
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <label className="text-sm font-medium text-foreground">
@@ -620,9 +711,11 @@ const Profile = () => {
                         Enable advanced cultural analysis
                       </p>
                     </div>
-                    <Switch 
-                      checked={aiInsights} 
-                      onCheckedChange={(value) => handleSettingChange('aiInsights', value)}
+                    <Switch
+                      checked={aiInsights}
+                      onCheckedChange={(value) =>
+                        handleSettingChange("aiInsights", value)
+                      }
                       disabled={updating}
                     />
                   </div>
@@ -640,10 +733,16 @@ const Profile = () => {
                 <CardContent className="space-y-4">
                   {recentActivity.map((activity, index) => (
                     <div key={index} className="flex items-center gap-3">
-                      <div className={`w-2 h-2 ${activity.color} rounded-full`}></div>
+                      <div
+                        className={`w-2 h-2 ${activity.color} rounded-full`}
+                      ></div>
                       <div className="flex-1">
-                        <p className="text-sm text-foreground">{activity.description}</p>
-                        <p className="text-xs text-muted-foreground">{activity.time}</p>
+                        <p className="text-sm text-foreground">
+                          {activity.description}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {activity.time}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -668,10 +767,10 @@ const Profile = () => {
                     <Heart className="w-4 h-4 mr-2" />
                     Export Preferences
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full justify-start"
-                    onClick={() => window.open('/discover', '_blank')}
+                    onClick={() => window.open("/discover", "_blank")}
                   >
                     <TrendingUp className="w-4 h-4 mr-2" />
                     Explore Culture
@@ -683,17 +782,17 @@ const Profile = () => {
         </div>
       </div>
 
-       {showForm && (
+      {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-background rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-               <button
+            <button
               onClick={() => setShowForm(false)}
               className="absolute right-4 top-4 p-1 rounded-sm opacity-70 hover:opacity-100"
             >
               <X className="h-5 w-5 bg-white" />
               <span className="sr-only">Close</span>
             </button>
-            <UserPreferencesForm 
+            <UserPreferencesForm
               onComplete={() => setShowForm(false)}
               isEditing={true}
             />

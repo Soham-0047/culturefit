@@ -8,7 +8,9 @@
     "dev": "nodemon app.js",
     "dev:watch": "nodemon --watch . --ext js,json,env app.js",
     "dev:debug": "nodemon --inspect app.js",
-    "dev:verbose": "nodemon --verbose app.js"
+    "dev:verbose": "nodemon --verbose app.js",
+    "build": "npm install",
+    "postinstall": "echo 'Build completed successfully'"
   },
   "author": "Soham",
   "license": "ISC",

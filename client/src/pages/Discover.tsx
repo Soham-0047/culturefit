@@ -28,6 +28,7 @@ const Discover = () => {
   const [loadMoreLoading, setLoadMoreLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreData, setHasMoreData] = useState(true);
+    const [userFavorites, setUserFavorites] = useState([]);
   const ITEMS_PER_PAGE = 20;
 
   // Backend API base URL
@@ -171,6 +172,7 @@ const Discover = () => {
       };
 
       if (activeCategory !== "all" && selectedCategory.defaultTag) {
+        // @ts-expect-error: fallback case
         params.tags = selectedCategory.defaultTag;
       }
 
@@ -194,6 +196,37 @@ const Discover = () => {
       setError(err.response?.data?.message || err.message);
     }
   };
+
+// Add this function to fetch user favorites
+const fetchUserFavorites = async () => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/user/favorites`, {
+      withCredentials: true
+    });
+    if (response.data.success) {
+      setUserFavorites(response.data.favorites || []);
+    }
+  } catch (err) {
+    console.error("Failed to fetch user favorites:", err);
+  }
+};
+
+// Add this function to handle favorite changes
+const handleFavoriteChange = (itemId, isFavorited) => {
+  if (isFavorited) {
+    // Item was added to favorites - you might want to add it to local state
+    // This depends on the structure returned by your API
+  } else {
+    // Item was removed from favorites - remove from local state
+    setUserFavorites(prev => prev.filter(fav => fav._id !== itemId));
+  }
+};
+
+// Helper function to check if an item is favorited
+const isItemFavorited = (itemId) => {
+  return userFavorites.some(fav => fav._id === itemId || fav.itemId === itemId);
+};
+
 
   // Search discoveries
   const handleSearch = async (query, append = false) => {
@@ -260,27 +293,30 @@ const Discover = () => {
     }
   };
 
-  const loadAllData = async () => {
-    setLoading(true);
-    setError(null);
-    setCurrentPage(1);
-    setHasMoreData(true);
+ const loadAllData = async () => {
+  setLoading(true);
+  setError(null);
+  setCurrentPage(1);
+  setHasMoreData(true);
 
-    try {
-      // First fetch stats to get categories
-      await fetchStats();
-      
-      // Then fetch other data after categories are loaded
-      await Promise.allSettled([
-        fetchTrendingDiscoveries(activeCategory, false),
-        fetchPersonalizedDiscoveries(activeCategory, false),
-      ]);
-    } catch (err) {
-      console.error("Failed to load data:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    // First fetch stats to get categories
+    await fetchStats();
+    
+    // Fetch user favorites
+    await fetchUserFavorites();
+    
+    // Then fetch other data after categories are loaded
+    await Promise.allSettled([
+      fetchTrendingDiscoveries(activeCategory, false),
+      fetchPersonalizedDiscoveries(activeCategory, false),
+    ]);
+  } catch (err) {
+    console.error("Failed to load data:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Load more data function
   const loadMoreData = async () => {
@@ -360,7 +396,7 @@ const Discover = () => {
         }
         return acc;
       }, []);
-      console.log(categories,allDiscoveries);
+console.log(trendingDiscoveries);
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -555,7 +591,12 @@ const Discover = () => {
                     className="animate-scale-in"
                     style={{ animationDelay: `${index * 0.1}s` }}
                   >
-                    <RecommendationCard {...discovery} />
+                     <RecommendationCard 
+        {...discovery} 
+        id={discovery.id}
+        isFavorited={isItemFavorited(discovery.id)}
+        onFavoriteChange={handleFavoriteChange}
+      />
                   </div>
                 ))}
               </div>

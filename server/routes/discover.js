@@ -5,7 +5,6 @@ const { requireAuth, optionalAuth } = require('../config/auth');
 
 const router = express.Router();
 
-
 // Get trending discoveries with preference enhancement
 router.get('/trending', optionalAuth, async (req, res) => {
   try {

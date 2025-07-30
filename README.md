@@ -170,7 +170,7 @@ cd client
 npm run dev
 ```
 
-- Frontend: http://localhost:5173
+- Frontend: http://localhost:8080
 - Backend: http://localhost:5000
 
 ---

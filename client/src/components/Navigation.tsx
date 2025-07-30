@@ -83,7 +83,7 @@ const Navigation = () => {
     if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
   };
-  console.log(user?.picture)
+
   return (
     <nav className="glass-nav fixed top-0 left-0 right-0 z-50 h-16">
       <div className="container mx-auto flex items-center justify-between h-full px-6">

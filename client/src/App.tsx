@@ -17,10 +17,15 @@ const queryClient = new QueryClient();
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, loading } = useAuth();
-    const { hasPreferences, loading: preferencesLoading, refetch } = useUserPreferences();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const {
+    hasPreferences,
+    loading: preferencesLoading,
+    error,
+    refetch
+  } = useUserPreferences();
 
-  if (loading || preferencesLoading) {
+  if (authLoading || preferencesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -28,27 +33,35 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-   // Show preferences form if user hasn't filled it out yet
-  if (!hasPreferences && isAuthenticated) {
-    console.log(isAuthenticated)
+  // Redirect if user is not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Redirect if preferences fetching failed (e.g. user deleted from DB)
+  if (error) {
+    console.error("User not found or deleted from DB:", error);
+    return <Navigate to="/" replace />;
+  }
+
+  // Show preferences form if user hasn't filled it out
+  if (!hasPreferences) {
     return (
-      <UserPreferencesForm 
+      <UserPreferencesForm
         onComplete={() => {
-          // Refetch preferences to update the state
           refetch();
-        }} 
+        }}
       />
     );
   }
 
-  // Show the protected content
   return <>{children}</>;
 };
+
 
 // Public Route Component (redirects to chat if authenticated)
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loading } = useAuth();
-  console.log(isAuthenticated)
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
