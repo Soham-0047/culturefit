@@ -286,8 +286,8 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes for better query performance
-userSchema.index({ email: 1 });
-userSchema.index({ googleId: 1 });
+// userSchema.index({ email: 1 });
+// userSchema.index({ googleId: 1 });
 userSchema.index({ "preferences.categories": 1 });
 userSchema.index({ "tasteProfile.compatibility_score": -1 });
 userSchema.index({ "status.lastLogin": -1 });

@@ -6,14 +6,13 @@ const { requireAuth } = require('../config/auth');
 const router = express.Router();
 
 // Google OAuth routes
-router.get('/google', 
-  passport.authenticate('google', { 
-    scope: ['profile', 'email'] 
+router.get('/google',
+  passport.authenticate('google', {
+    scope: ['profile', 'email']
   })
 );
 
 // Google OAuth callback
-// Enhanced OAuth callback - replace your existing one
 router.get('/google/callback',
   passport.authenticate('google', { 
     failureRedirect: `${process.env.FRONTEND_URL}/?auth=failed`,
@@ -21,96 +20,58 @@ router.get('/google/callback',
   }),
   async (req, res) => {
     try {
-      console.log('=== OAUTH CALLBACK START ===');
-      console.log('✅ Passport authentication successful');
-      console.log('req.user exists:', !!req.user);
-      console.log('req.user details:', req.user ? {
-        id: req.user._id,
-        email: req.user.email,
-        name: req.user.name,
-        googleId: req.user.googleId
-      } : 'NO USER');
-      console.log('req.isAuthenticated() before save:', req.isAuthenticated());
-      console.log('Session before save:', JSON.stringify(req.session, null, 2));
-      console.log('Session.passport before save:', req.session?.passport);
+      console.log('=== CALLBACK START ===');
+      console.log('req.user:', req.user ? req.user.email : 'NO USER');
+      console.log('req.isAuthenticated():', req.isAuthenticated());
+      console.log('req.session:', req.session ? 'EXISTS' : 'NO SESSION');
+      console.log('req.sessionID:', req.sessionID);
 
       if (!req.user) {
-        console.error('❌ No user found in callback after passport authentication');
+        console.error('❌ No user found in callback');
         return res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=no_user`);
       }
 
       // Update user's last login
-      const updatedUser = await User.findByIdAndUpdate(req.user._id, {
+      await User.findByIdAndUpdate(req.user._id, {
         lastLogin: new Date(),
         $inc: { loginCount: 1 }
-      }, { new: true });
-
-      console.log('✅ User updated in database:', updatedUser ? 'success' : 'failed');
-      
-      // Force session save and wait
-      console.log('💾 Saving session...');
-      await new Promise((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) {
-            console.error('❌ Session save error:', err);
-            reject(err);
-          } else {
-            console.log('✅ Session saved successfully');
-            console.log('Session after save:', JSON.stringify(req.session, null, 2));
-            console.log('Session.passport after save:', req.session?.passport);
-            console.log('req.isAuthenticated() after save:', req.isAuthenticated());
-            resolve();
-          }
-        });
       });
-      
-      // Small delay to ensure session is persisted
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      console.log('🚀 Redirecting to frontend...');
+
+      console.log('✅ User updated, redirecting to frontend');
       console.log('Redirect URL:', `${process.env.FRONTEND_URL}/discover?auth=success`);
+
+      // Redirect to frontend with success
       res.redirect(`${process.env.FRONTEND_URL}/discover?auth=success`);
-      console.log('=== OAUTH CALLBACK END ===');
-      
+
+      console.log('=== CALLBACK END ===');
     } catch (error) {
       console.error('❌ Auth callback error:', error);
-      console.error('Error stack:', error.stack);
       res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=server_error`);
     }
   }
 );
 
-// Check authentication status
-router.get('/status', (req, res) => {
-  console.log('=== AUTH STATUS CHECK ===');
-  console.log('Session ID:', req.sessionID);
-  console.log('Session exists:', !!req.session);
-  console.log('Is authenticated:', req.isAuthenticated());
-  console.log('User exists:', !!req.user);
-  console.log('User email:', req.user ? req.user.email : 'No user');
-  console.log('Cookie header:', req.headers.cookie);
-  console.log('Passport session:', req.session ? req.session.passport : 'No passport session');
-  
-  const isAuthenticated = req.isAuthenticated();
-  
-  const response = {
-    isAuthenticated, // Make sure this matches what frontend expects
-    user: isAuthenticated && req.user ? {
-      id: req.user._id,
-      email: req.user.email,
-      name: req.user.name,
-      avatar: req.user.avatar
-    } : null,
-    sessionId: req.sessionID,
-    debug: {
-      hasSession: !!req.session,
-      hasCookie: !!req.headers.cookie,
-      passportSession: req.session ? !!req.session.passport : false
-    }
-  };
 
-  console.log('Response being sent:', response);
-  res.json(response);
+router.get('/status', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({
+      authenticated: true,
+      user: {
+        id: req.user._id,
+        email: req.user.email,
+        name: req.user.name,
+        picture: req.user.avatar,
+        preferences: req.user.preferences,
+        culturalProfile: req.user.culturalProfile,
+        memberSince: req.user.createdAt
+      }
+    });
+  } else {
+    res.json({
+      authenticated: false,
+      user: null
+    });
+  }
 });
 
 // Get current user profile
@@ -198,8 +159,8 @@ router.post('/preferences', async (req, res) => {
     const validCategories = ['all', 'film', 'music', 'literature', 'art', 'design'];
     const invalidCategories = categories.filter(cat => !validCategories.includes(cat));
     if (invalidCategories.length > 0) {
-      return res.status(400).json({ 
-        message: `Invalid categories: ${invalidCategories.join(', ')}` 
+      return res.status(400).json({
+        message: `Invalid categories: ${invalidCategories.join(', ')}`
       });
     }
 
@@ -208,8 +169,8 @@ router.post('/preferences', async (req, res) => {
       const validMoods = ['energetic', 'calm', 'adventurous', 'romantic', 'mysterious', 'uplifting', 'nostalgic', 'experimental'];
       const invalidMoods = moodPreferences.filter(mood => !validMoods.includes(mood));
       if (invalidMoods.length > 0) {
-        return res.status(400).json({ 
-          message: `Invalid mood preferences: ${invalidMoods.join(', ')}` 
+        return res.status(400).json({
+          message: `Invalid mood preferences: ${invalidMoods.join(', ')}`
         });
       }
     }
@@ -240,22 +201,22 @@ router.post('/preferences', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ 
+    res.json({
       message: 'Preferences saved successfully',
-      preferences: user.preferences 
+      preferences: user.preferences
     });
   } catch (error) {
     console.error('Error saving user preferences:', error);
-    
+
     // Handle validation errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ 
-        message: 'Validation error', 
-        errors: validationErrors 
+      return res.status(400).json({
+        message: 'Validation error',
+        errors: validationErrors
       });
     }
-    
+
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -305,21 +266,21 @@ router.put('/preferences', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ 
+    res.json({
       message: 'Preferences updated successfully',
-      preferences: user.preferences 
+      preferences: user.preferences
     });
   } catch (error) {
     console.error('Error updating user preferences:', error);
-    
+
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ 
-        message: 'Validation error', 
-        errors: validationErrors 
+      return res.status(400).json({
+        message: 'Validation error',
+        errors: validationErrors
       });
     }
-    
+
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -328,7 +289,7 @@ router.put('/preferences', async (req, res) => {
 router.put('/cultural-profile', requireAuth, async (req, res) => {
   try {
     const { culturalProfile } = req.body;
-    
+
     if (!culturalProfile || typeof culturalProfile !== 'object') {
       return res.status(400).json({
         success: false,
@@ -338,7 +299,7 @@ router.put('/cultural-profile', requireAuth, async (req, res) => {
 
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { 
+      {
         culturalProfile: {
           ...req.user.culturalProfile,
           ...culturalProfile
@@ -365,8 +326,8 @@ router.put('/cultural-profile', requireAuth, async (req, res) => {
 // Add to favorites
 router.post('/favorites', requireAuth, async (req, res) => {
   try {
-    const { itemId, itemType, title, description, image, url, category, tags} = req.body;
-    
+    const { itemId, itemType, title, description, image, url, category, tags } = req.body;
+
     if (!itemId || !itemType || !title) {
       return res.status(400).json({
         success: false,
@@ -375,12 +336,12 @@ router.post('/favorites', requireAuth, async (req, res) => {
     }
 
     const user = await User.findById(req.user._id);
-    
+
     // Check if already in favorites
-    const existingFavorite = user.favorites.find(fav => 
+    const existingFavorite = user.favorites.find(fav =>
       fav.itemId === itemId && fav.itemType === itemType
     );
-    
+
     if (existingFavorite) {
       return res.status(409).json({
         success: false,
@@ -420,10 +381,10 @@ router.post('/favorites', requireAuth, async (req, res) => {
 router.delete('/favorites/:itemId', requireAuth, async (req, res) => {
   try {
     const { itemId } = req.params;
-    
+
     const user = await User.findById(req.user._id);
     user.favorites = user.favorites.filter(fav => fav.itemId !== itemId);
-    
+
     await user.save();
 
     res.json({
@@ -450,7 +411,7 @@ router.post('/logout', requireAuth, (req, res) => {
         message: 'Failed to logout'
       });
     }
-    
+
     req.session.destroy((err) => {
       if (err) {
         console.error('Session destroy error:', err);
@@ -459,7 +420,7 @@ router.post('/logout', requireAuth, (req, res) => {
           message: 'Failed to destroy session'
         });
       }
-      
+
       res.clearCookie('connect.sid');
       res.json({
         success: true,
@@ -473,17 +434,17 @@ router.post('/logout', requireAuth, (req, res) => {
 router.delete('/account', requireAuth, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.user._id);
-    
+
     req.logout((err) => {
       if (err) {
         console.error('Logout after delete error:', err);
       }
-      
+
       req.session.destroy((err) => {
         if (err) {
           console.error('Session destroy after delete error:', err);
         }
-        
+
         res.clearCookie('connect.sid');
         res.json({
           success: true,
@@ -500,132 +461,23 @@ router.delete('/account', requireAuth, async (req, res) => {
   }
 });
 
-
-// Add this to your routes/auth.js file
-
-// Cookie test endpoint
-router.get('/cookie-test', (req, res) => {
-  console.log('=== COOKIE TEST ===');
-  console.log('Request headers:', req.headers);
-  console.log('Received cookies:', req.headers.cookie || 'No cookies');
-  console.log('Session ID:', req.sessionID);
-  console.log('Session exists:', !!req.session);
-  console.log('Is authenticated:', req.isAuthenticated ? req.isAuthenticated() : false);
-  
-  // Set a test cookie
-  res.cookie('test-cookie', 'test-value-' + Date.now(), {
-    secure: true,
-    httpOnly: true,
-    sameSite: 'none',
-    maxAge: 60000 // 1 minute
-  });
-  
-  // Also set a simple cookie for comparison
-  res.cookie('simple-test', 'simple-value', {
-    maxAge: 60000
-  });
-  
+router.get('/debug', (req, res) => {
   res.json({
-    success: true,
-    message: 'Test cookies set successfully',
-    debug: {
-      receivedCookies: req.headers.cookie || 'No cookies received',
-      userAgent: req.headers['user-agent'],
-      origin: req.headers.origin,
-      referer: req.headers.referer,
-      sessionInfo: {
-        sessionID: req.sessionID,
-        sessionExists: !!req.session,
-        isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false,
-        user: req.user ? req.user.email : null
-      },
-      cookiesBeingSet: [
-        'test-cookie (secure, httpOnly, sameSite=none)',
-        'simple-test (basic cookie)'
-      ]
-    }
-  });
-});
-
-// Second endpoint to check if cookies were received
-router.get('/cookie-check', (req, res) => {
-  console.log('=== COOKIE CHECK ===');
-  console.log('All cookies received:', req.headers.cookie);
-  
-  res.json({
-    success: true,
-    cookiesReceived: req.headers.cookie || 'No cookies',
-    parsedCookies: req.cookies || {},
-    sessionInfo: {
-      sessionID: req.sessionID,
-      sessionExists: !!req.session,
-      isAuthenticated: req.isAuthenticated ? req.isAuthenticated() : false
-    }
-  });
-});
-
-
-// Debug session state
-router.get('/session-debug', (req, res) => {
-  console.log('=== SESSION DEBUG ===');
-  console.log('Session ID:', req.sessionID);
-  console.log('Session data:', JSON.stringify(req.session, null, 2));
-  console.log('Session passport:', req.session?.passport);
-  console.log('req.user:', req.user ? {
-    id: req.user._id,
-    email: req.user.email,
-    name: req.user.name
-  } : 'NO USER');
-  console.log('req.isAuthenticated():', req.isAuthenticated());
-  
-  res.json({
-    sessionID: req.sessionID,
-    sessionData: req.session,
-    passportSession: req.session?.passport,
-    user: req.user,
     isAuthenticated: req.isAuthenticated(),
+    user: req.user ? { email: req.user.email, id: req.user._id } : null,
+    sessionId: req.sessionID,
     debug: {
       hasSession: !!req.session,
-      hasPassportData: !!(req.session?.passport),
-      passportUser: req.session?.passport?.user,
-      sessionKeys: req.session ? Object.keys(req.session) : [],
-      userFromPassport: req.user ? 'exists' : 'missing'
+      hasCookie: !!req.headers.cookie,
+      passportSession: !!req.session?.passport,
+      sessionData: req.session,
+      cookies: req.headers.cookie,
+      userAgent: req.headers['user-agent'],
+      origin: req.headers.origin,
+      host: req.headers.host,
+      referer: req.headers.referer
     }
   });
-});
-
-// Test endpoint to manually set session (for testing)
-router.get('/test-session', async (req, res) => {
-  try {
-    // Find any user for testing
-    const testUser = await User.findOne();
-    if (!testUser) {
-      return res.json({ error: 'No users found in database' });
-    }
-
-    // Manually log in this user
-    req.login(testUser, (err) => {
-      if (err) {
-        console.error('Manual login error:', err);
-        return res.json({ error: 'Failed to manually log in user', details: err.message });
-      }
-      
-      console.log('✅ Manually logged in user:', testUser.email);
-      res.json({
-        success: true,
-        message: 'User manually logged in',
-        user: {
-          id: testUser._id,
-          email: testUser.email,
-          name: testUser.name
-        },
-        isAuthenticated: req.isAuthenticated()
-      });
-    });
-  } catch (error) {
-    console.error('Test session error:', error);
-    res.json({ error: 'Test session failed', details: error.message });
-  }
 });
 
 module.exports = router;

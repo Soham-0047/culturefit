@@ -73,43 +73,29 @@ app.use(compression());
 app.use(morgan('combined'));
 
 // CORS configuration
-// app.use(cors({
-//   origin: ['http://localhost:3000', 'http://localhost:5173','http://localhost:8080',process.env.FRONTEND_URL],
-//   credentials: true,
-//   optionsSuccessStatus: 200,
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-//   exposedHeaders: ['Set-Cookie']
-// }));
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173', 
+  'http://localhost:8080',
+  process.env.FRONTEND_URL
+].filter(Boolean); // Remove any undefined values
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc.)
+    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173', 
-      'http://localhost:8080',
-      'http://localhost:4173',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:8080',
-      process.env.FRONTEND_URL
-    ];
-    
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
+      console.log('Blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Set-Cookie'],
-  exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 
 // Body parsing middleware
@@ -126,28 +112,26 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 //     touchAfter: 24 * 3600 // lazy session update
 //   }),
 //   cookie: {
-//     secure: true,
+//     secure: process.env.NODE_ENV === 'production',
 //     httpOnly: true,
 //     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-//     sameSite: 'none'
+//     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' 
 //   }
 // }));
 
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true, // Changed to true for testing
   store: MongoStore.create({
     mongoUrl: process.env.MONGODB_URI,
-    touchAfter: 24 * 3600,
-     ttl: 14 * 24 * 60 * 60, // 14 days
-  autoRemove: 'native'
+    touchAfter: 24 * 3600
   }),
   cookie: {
-    secure: true,           // ✅ Required on HTTPS (Render)
-    httpOnly: true,         // ✅ Protects from JS access
-    sameSite: 'none',       // ✅ Allow cookies across localhost + render
-    maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+    secure: false, // Set to false temporarily for testing
+    httpOnly: true,
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+    sameSite: 'lax' // Changed to lax for testing
   }
 }));
 
@@ -245,4 +229,3 @@ const server = app.listen(PORT, () => {
 });
 
 module.exports = app;
-

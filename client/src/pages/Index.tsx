@@ -81,6 +81,7 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem("culturesense-ui-theme", "dark");
   },[])
+
   
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
