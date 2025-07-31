@@ -241,7 +241,7 @@ export const useAuth = () => {
           }));
           
           // Optionally fetch additional user data
-          if (data.user) {
+          if (data) {
             // You already have basic user data, but you might want to fetch more
             await fetchUserData();
           }

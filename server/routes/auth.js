@@ -12,11 +12,50 @@ router.get('/google',
   })
 );
 
-// Google OAuth callback
+// // Google OAuth callback
+// router.get('/google/callback',
+//   passport.authenticate('google', { 
+//     failureRedirect: `${process.env.FRONTEND_URL}/?auth=failed`,
+//     failureMessage: true 
+//   }),
+//   async (req, res) => {
+//     try {
+//       console.log('=== CALLBACK START ===');
+//       console.log('req.user:', req.user ? req.user.email : 'NO USER');
+//       console.log('req.isAuthenticated():', req.isAuthenticated());
+//       console.log('req.session:', req.session ? 'EXISTS' : 'NO SESSION');
+//       console.log('req.sessionID:', req.sessionID);
+
+//       if (!req.user) {
+//         console.error('❌ No user found in callback');
+//         return res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=no_user`);
+//       }
+
+//       // Update user's last login
+//       await User.findByIdAndUpdate(req.user._id, {
+//         lastLogin: new Date(),
+//         $inc: { loginCount: 1 }
+//       });
+
+//       console.log('✅ User updated, redirecting to frontend');
+//       console.log('Redirect URL:', `${process.env.FRONTEND_URL}/discover?auth=success`);
+
+//       // Redirect to frontend with success
+//       res.redirect(`${process.env.FRONTEND_URL}/discover?auth=success`);
+
+//       console.log('=== CALLBACK END ===');
+//     } catch (error) {
+//       console.error('❌ Auth callback error:', error);
+//       res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=server_error`);
+//     }
+//   }
+// );
+
+
 router.get('/google/callback',
-  passport.authenticate('google', { 
+  passport.authenticate('google', {
     failureRedirect: `${process.env.FRONTEND_URL}/?auth=failed`,
-    failureMessage: true 
+    failureMessage: true
   }),
   async (req, res) => {
     try {
@@ -31,17 +70,31 @@ router.get('/google/callback',
         return res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=no_user`);
       }
 
-      // Update user's last login
+      // Update user record
       await User.findByIdAndUpdate(req.user._id, {
         lastLogin: new Date(),
         $inc: { loginCount: 1 }
       });
 
-      console.log('✅ User updated, redirecting to frontend');
-      console.log('Redirect URL:', `${process.env.FRONTEND_URL}/discover?auth=success`);
+      // ✅ Force session save
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error('❌ Session save error:', err);
+            return reject(err);
+          }
+          console.log('✅ Session saved successfully');
+          resolve();
+        });
+      });
 
-      // Redirect to frontend with success
-      res.redirect(`${process.env.FRONTEND_URL}/discover?auth=success`);
+      // ⏳ Optional delay
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // ✅ Now safe to redirect
+      const redirectURL = `${process.env.FRONTEND_URL}/discover?auth=success`;
+      console.log('✅ Redirecting to frontend:', redirectURL);
+      res.redirect(redirectURL);
 
       console.log('=== CALLBACK END ===');
     } catch (error) {
@@ -50,6 +103,7 @@ router.get('/google/callback',
     }
   }
 );
+
 
 
 router.get('/status', (req, res) => {
