@@ -77,6 +77,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173', 
   'http://localhost:8080',
+  'https://culturesense.netlify.app',
   process.env.FRONTEND_URL
 ].filter(Boolean); // Remove any undefined values
 
@@ -145,12 +146,10 @@ app.use(session({
     touchAfter: 24 * 3600
   }),
   cookie: {
-    secure: false, // Keep false for HTTP localhost
+    secure: true, // Now both domains are HTTPS
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    sameSite: 'none', // Change back to 'none' for cross-origin
-    // Add domain setting for production
-    domain: process.env.NODE_ENV === 'production' ? undefined : undefined
+    sameSite: 'none' // Required for cross-site cookies
   }
 }));
 
