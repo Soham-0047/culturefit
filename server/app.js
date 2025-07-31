@@ -119,19 +119,38 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 //   }
 // }));
 
+// app.use(session({
+//   secret: process.env.SESSION_SECRET,
+//   resave: false,
+//   saveUninitialized: true, // Changed to true for testing
+//   store: MongoStore.create({
+//     mongoUrl: process.env.MONGODB_URI,
+//     touchAfter: 24 * 3600
+//   }),
+//   cookie: {
+//     secure: false, // Set to false temporarily for testing
+//     httpOnly: true,
+//     maxAge: 1000 * 60 * 60 * 24 * 7,
+//     sameSite: 'lax' // Changed to lax for testing
+//   }
+// }));
+
+
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
-  saveUninitialized: true, // Changed to true for testing
+  saveUninitialized: false,
   store: MongoStore.create({
     mongoUrl: process.env.MONGODB_URI,
     touchAfter: 24 * 3600
   }),
   cookie: {
-    secure: false, // Set to false temporarily for testing
+    secure: false, // Keep false for HTTP localhost
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-    sameSite: 'lax' // Changed to lax for testing
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    sameSite: 'none', // Change back to 'none' for cross-origin
+    // Add domain setting for production
+    domain: process.env.NODE_ENV === 'production' ? undefined : undefined
   }
 }));
 
