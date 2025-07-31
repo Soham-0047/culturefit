@@ -239,7 +239,7 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
           </Button>
 
           {/* Email Form - Updated for JWT */}
-          <div className="relative">
+          {/* <div className="relative">
             <Separator className="my-6" />
             <div className="absolute inset-0 flex items-center justify-center">
               <span className="bg-background px-4 text-sm text-muted-foreground">
@@ -289,7 +289,7 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
                 </>
               )}
             </Button>
-          </form>
+          </form> */}
         </div>
       </DialogContent>
     </Dialog>
