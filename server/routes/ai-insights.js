@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../config/auth');
+const { verifyToken } = require('../config/auth');
 const User = require('../models/User');
 const axios = require('axios');
 
@@ -207,7 +207,7 @@ class LLMService {
 const llmService = new LLMService();
 
 // AI-Powered Personality Analysis
-router.get('/personality-analysis', requireAuth, async (req, res) => {
+router.get('/personality-analysis', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate('favorites');
     
@@ -289,7 +289,7 @@ Please provide a JSON response with:
 });
 
 // Trend Prediction with AI
-router.get('/trend-predictions', requireAuth, async (req, res) => {
+router.get('/trend-predictions', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     const { timeframe = '6months', categories = 'all' } = req.query;
@@ -364,7 +364,7 @@ Provide JSON response with:
 });
 
 // Smart Recommendations Engine
-router.post('/smart-recommendations', requireAuth, async (req, res) => {
+router.post('/smart-recommendations', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate('favorites');
     const { mood, context, exclusions = [] } = req.body;
@@ -456,7 +456,7 @@ Provide JSON response with:
 });
 
 // Cultural Compatibility Analysis
-router.post('/compatibility-analysis', requireAuth, async (req, res) => {
+router.post('/compatibility-analysis', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     const { targetUserId, culturalItems } = req.body;
@@ -528,7 +528,7 @@ Provide JSON response with:
 });
 
 // Cultural Journey Generator
-router.post('/cultural-journey', requireAuth, async (req, res) => {
+router.post('/cultural-journey', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     const { goal, duration, intensity = 'moderate' } = req.body;
@@ -605,7 +605,7 @@ Provide JSON response with:
 });
 
 // Content Analysis and Insights
-router.post('/analyze-content', requireAuth, async (req, res) => {
+router.post('/analyze-content', verifyToken, async (req, res) => {
   try {
     const { contentData, analysisType = 'comprehensive' } = req.body;
     const user = await User.findById(req.user.id);

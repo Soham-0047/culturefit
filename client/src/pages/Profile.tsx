@@ -31,6 +31,7 @@ import {
   X,
 } from "lucide-react";
 import UserPreferencesForm from "@/components/UserPresencesForm";
+import { api } from "@/utils/api";
 
 const Profile = () => {
   // State management
@@ -58,189 +59,129 @@ const Profile = () => {
   }, []);
 
   const fetchUserData = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+
+    // Check auth status
+    await api.get('/auth/status');
+
+    let profile, preferences, analytics, favoritesData, recommendationsData;
+
+    // 1. Fetch Profile
     try {
-      setLoading(true);
-      setError(null);
-
-      // First check authentication status
-      const authCheck = await fetch(`${API_BASE}/auth/status`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!authCheck.ok) {
-        throw new Error("Not authenticated. Please log in.");
-      }
-
-      // Fetch user profile first (most critical)
-      let profile, preferences, analytics, favoritesData, recommendationsData;
-
-      try {
-        const profileRes = await fetch(`${API_BASE}/auth/profile`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!profileRes.ok) {
-          const errorText = await profileRes.text();
-          console.error("Profile fetch error:", errorText);
-          throw new Error(`Profile fetch failed: ${profileRes.status}`);
-        }
-
-        profile = await profileRes.json();
-        console.log(profile, "Damru");
-        setUserProfile(profile.user);
-      } catch (profileError) {
-        console.error("Profile error:", profileError);
-        // Set default profile if fetch fails
-        profile = {
-          name: "Cultural Explorer",
-          bio: "Welcome to your cultural journey",
-          avatar: null,
-          tier: "Explorer",
-        };
-        setUserProfile(profile);
-      }
-
-      // Fetch preferences with fallback
-      try {
-        const preferencesRes = await fetch(`${API_BASE}/auth/preferences`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (preferencesRes.ok) {
-          preferences = await preferencesRes.json();
-          setUserPreferences(preferences);
-
-          // Set settings from preferences
-          if (preferences.settings) {
-            setNotifications(preferences.settings.notifications ?? true);
-            setPublicProfile(preferences.settings.publicProfile ?? false);
-            setAiInsights(preferences.settings.aiInsights ?? true);
-          }
-        } else {
-          throw new Error("Preferences not found");
-        }
-      } catch (prefError) {
-        console.error("Preferences error:", prefError);
-        // Set default preferences
-        preferences = {
-          culturalProfile: {},
-          settings: {
-            notifications: true,
-            publicProfile: false,
-            aiInsights: true,
-          },
-        };
-        setUserPreferences(preferences);
-      }
-
-      // Fetch optional data (non-critical)
-      try {
-        const analyticsRes = await fetch(`${API_BASE}/user/analytics`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        analytics = analyticsRes.ok ? await analyticsRes.json() : { stats: {} };
-        setUserAnalytics(analytics);
-      } catch (analyticsError) {
-        console.error("Analytics error:", analyticsError);
-        setUserAnalytics({ stats: {} });
-      }
-
-      try {
-        const favoritesRes = await fetch(`${API_BASE}/user/favorites`, {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        favoritesData = favoritesRes.ok ? await favoritesRes.json() : [];
-        setFavorites(favoritesData.favorites);
-      } catch (favError) {
-        console.error("Favorites error:", favError);
-        setFavorites([]);
-      }
-
-      try {
-        const recommendationsRes = await fetch(
-          `${API_BASE}/user/recommendations`,
-          {
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        recommendationsData = recommendationsRes.ok
-          ? await recommendationsRes.json()
-          : [];
-        setRecommendations(recommendationsData);
-      } catch (recError) {
-        console.error("Recommendations error:", recError);
-        setRecommendations([]);
-      }
-    } catch (err) {
-      setError(err.message);
-      console.error("Error fetching user data:", err);
-
-      // Set minimal fallback data so component still renders
-      setUserProfile({
-        name: "Guest User",
-        bio: "Please log in to view your profile",
+      const profileRes = await api.get('/auth/profile');
+      profile = await profileRes.json();
+      setUserProfile(profile.user);
+    } catch (profileError) {
+      console.error("Profile error:", profileError);
+      profile = {
+        name: "Cultural Explorer",
+        bio: "Welcome to your cultural journey",
         avatar: null,
-        tier: "Guest",
-      });
-      setUserPreferences({
+        tier: "Explorer",
+      };
+      setUserProfile(profile);
+    }
+
+    // 2. Fetch Preferences
+    try {
+      const preferencesRes = await api.get('/auth/preferences');
+      preferences = await preferencesRes.json();
+      setUserPreferences(preferences);
+
+      if (preferences.settings) {
+        setNotifications(preferences.settings.notifications ?? true);
+        setPublicProfile(preferences.settings.publicProfile ?? false);
+        setAiInsights(preferences.settings.aiInsights ?? true);
+      }
+    } catch (prefError) {
+      console.error("Preferences error:", prefError);
+      preferences = {
         culturalProfile: {},
         settings: {
           notifications: true,
           publicProfile: false,
           aiInsights: true,
         },
-      });
-      setUserAnalytics({ stats: {} });
-      setFavorites([]);
-      setRecommendations([]);
-    } finally {
-      setLoading(false);
+      };
+      setUserPreferences(preferences);
     }
-  };
+
+    // 3. Optional Analytics
+    try {
+      const analyticsRes = await api.get('/user/analytics');
+      analytics = await analyticsRes.json();
+      setUserAnalytics(analytics);
+    } catch (analyticsError) {
+      console.error("Analytics error:", analyticsError);
+      setUserAnalytics({ stats: {} });
+    }
+
+    // 4. Optional Favorites
+    try {
+      const favoritesRes = await api.get('/user/favorites');
+      favoritesData = await favoritesRes.json();
+      setFavorites(favoritesData.favorites || []);
+    } catch (favError) {
+      console.error("Favorites error:", favError);
+      setFavorites([]);
+    }
+
+    // 5. Optional Recommendations
+    try {
+      const recRes = await api.get('/user/recommendations');
+      recommendationsData = await recRes.json();
+      setRecommendations(recommendationsData);
+    } catch (recError) {
+      console.error("Recommendations error:", recError);
+      setRecommendations([]);
+    }
+
+  } catch (err: any) {
+    setError(err.message || "Failed to fetch user data");
+    console.error("Error fetching user data:", err);
+
+    setUserProfile({
+      name: "Guest User",
+      bio: "Please log in to view your profile",
+      avatar: null,
+      tier: "Guest",
+    });
+    setUserPreferences({
+      culturalProfile: {},
+      settings: {
+        notifications: true,
+        publicProfile: false,
+        aiInsights: true,
+      },
+    });
+    setUserAnalytics({ stats: {} });
+    setFavorites([]);
+    setRecommendations([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const updatePreferences = async (updates) => {
-    try {
-      setUpdating(true);
-      const response = await fetch(`${API_BASE}/auth/preferences`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(updates),
-      });
+  try {
+    setUpdating(true);
+    
+    const response = await api.put('/auth/preferences', updates);
+    
+    const updatedPreferences = await response.json();
+    setUserPreferences(updatedPreferences);
+    
+  } catch (err: any) {
+    console.error("Error updating preferences:", err);
+    setError("Failed to update preferences");
+  } finally {
+    setUpdating(false);
+  }
+};
 
-      if (!response.ok) {
-        throw new Error("Failed to update preferences");
-      }
-
-      const updatedPreferences = await response.json();
-      setUserPreferences(updatedPreferences);
-    } catch (err) {
-      console.error("Error updating preferences:", err);
-      setError("Failed to update preferences");
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   const handleSettingChange = async (setting, value) => {
     const updates = {

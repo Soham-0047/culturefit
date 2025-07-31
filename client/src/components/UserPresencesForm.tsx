@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Palette, Music, BookOpen, Camera, Brush, MapPin, Sparkles, Heart, Zap } from 'lucide-react';
-
+import { api } from '@/utils/api';
 interface UserPreferencesFormProps {
   onComplete: () => void;
   isEditing?: boolean; // New prop to indicate if we're editing existing preferences
@@ -66,12 +66,8 @@ const UserPreferencesForm: React.FC<UserPreferencesFormProps> = ({ onComplete, i
     setError('');
     
     try {
-      const response = await axios.get(`${import.meta.env.VITE_APP_BACKEND_URL}/auth/preferences`, {
-        withCredentials: true
-      });
-
-      const preferences = response.data;
-      
+      const response: any = await api.get('/auth/preferences');
+      const preferences = await response.json();
       // Prefill form with existing data
       setSelectedCategories(preferences.categories || []);
       setSelectedGenres(preferences.favoriteGenres || []);
@@ -119,62 +115,49 @@ const UserPreferencesForm: React.FC<UserPreferencesFormProps> = ({ onComplete, i
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
+  e.preventDefault();
+  setIsLoading(true);
+  setError('');
 
-    try {
-      // Parse cultural tags
-      const tagsArray = culturalTags
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag.length > 0);
+  try {
+    // Parse cultural tags
+    const tagsArray = culturalTags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
 
-      const formData = {
-        preferences: {
-          categories: selectedCategories,
-          favoriteGenres: selectedGenres,
-          culturalTags: tagsArray,
-          moodPreferences: selectedMoods,
-          location: {
-            country: country.trim() || null,
-            city: city.trim() || null,
-            timezone: null
-          }
-        }
-      };
-
-      // Use POST for new preferences or PUT for updating existing ones
-      const method = isEditing ? 'put' : 'post';
-      const url = `${import.meta.env.VITE_APP_BACKEND_URL}/auth/preferences`;
-      
-      let response;
-      if (isEditing) {
-        // For PUT, send the data directly (not wrapped in preferences object)
-        const updateData = {
-          categories: selectedCategories,
-          favoriteGenres: selectedGenres,
-          culturalTags: tagsArray,
-          moodPreferences: selectedMoods,
-          location: {
-            country: country.trim() || null,
-            city: city.trim() || null,
-            timezone: null
-          }
-        };
-        response = await axios.put(url, updateData, { withCredentials: true });
-      } else {
-        response = await axios.post(url, formData, { withCredentials: true });
+    // Shared data structure
+    const preferencesData = {
+      categories: selectedCategories,
+      favoriteGenres: selectedGenres,
+      culturalTags: tagsArray,
+      moodPreferences: selectedMoods,
+      location: {
+        country: country.trim() || null,
+        city: city.trim() || null,
+        timezone: null
       }
+    };
 
-      onComplete();
-    } catch (err: any) {
-      setError(err.response?.data?.message || `Failed to ${isEditing ? 'update' : 'save'} preferences. Please try again.`);
-      console.error('Error saving preferences:', err);
-    } finally {
-      setIsLoading(false);
+    // Use PUT for editing, POST for new entry
+    if (isEditing) {
+      await api.put('/auth/preferences', preferencesData);
+    } else {
+      await api.post('/auth/preferences', { preferences: preferencesData });
     }
-  };
+
+    onComplete(); // trigger callback on success
+  } catch (err: any) {
+    console.error('Error saving preferences:', err);
+    setError(
+      err.message ||
+      `Failed to ${isEditing ? 'update' : 'save'} preferences. Please try again.`
+    );
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   // Get genres for selected categories
   const availableGenres = selectedCategories.reduce((acc, category) => {
@@ -198,7 +181,7 @@ const UserPreferencesForm: React.FC<UserPreferencesFormProps> = ({ onComplete, i
       </div>
     );
   }
-
+console.log(selectedCategories,selectedGenres,isEditing)
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-subtle">
       <Card className="w-full max-w-4xl bg-glass backdrop-blur-glass border-glass shadow-elegant animate-fade-in">

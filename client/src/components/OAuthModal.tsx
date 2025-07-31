@@ -10,8 +10,27 @@ import { useToast } from "@/hooks/use-toast";
 interface OAuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAuthSuccess?: () => void; // Add callback for successful auth
+  onAuthSuccess?: () => void;
 }
+
+// JWT Token Management
+const TOKEN_KEY = 'culturesense_token';
+
+const getToken = (): string | null => {
+  return localStorage.getItem(TOKEN_KEY);
+};
+
+const setToken = (token: string): void => {
+  localStorage.setItem(TOKEN_KEY, token);
+};
+
+const createAuthHeaders = (): HeadersInit => {
+  const token = getToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` })
+  };
+};
 
 const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
   const [isLoading, setIsLoading] = useState<string | null>(null);
@@ -22,16 +41,13 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
   // API base URL - adjust according to your backend setup
   const API_BASE_URL = import.meta.env.VITE_APP_BACKEND_URL;
 
-  // Function to check authentication status
+  // Function to check authentication status with JWT
   const checkAuthStatus = async () => {
     try {
       console.log('Checking auth status...');
-      const response = await fetch(`${API_BASE_URL}/auth/status`, {
+      const response = await fetch(`${API_BASE_URL}/auth/status/public`, {
         method: 'GET',
-        credentials: 'include', // Important for session cookies
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers: createAuthHeaders()
       });
 
       if (response.ok) {
@@ -40,30 +56,34 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
         return data;
       } else {
         console.error('Auth status check failed:', response.status);
-        return { isAuthenticated: false, user: null };
+        return { authenticated: false, user: null };
       }
     } catch (error) {
       console.error('Error checking auth status:', error);
-      return { isAuthenticated: false, user: null };
+      return { authenticated: false, user: null };
     }
   };
 
-  // Check for authentication success/failure on component mount
+  // Check for JWT token in URL (OAuth callback)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const authStatus = urlParams.get('auth');
+    const token = urlParams.get('token');
     const error = urlParams.get('error');
 
-    console.log('URL params check:', { authStatus, error });
+    console.log('URL params check:', { authStatus, token: token ? 'present' : 'none', error });
 
-    if (authStatus === 'success') {
-      console.log('Auth success detected, checking status...');
+    if (authStatus === 'success' && token) {
+      console.log('Auth success detected with token, storing...');
       
-      // Wait a moment for session to be fully established, then check auth status
+      // Store the JWT token
+      setToken(token);
+      
+      // Verify the token works
       setTimeout(async () => {
         const authData = await checkAuthStatus();
         
-        if (authData.isAuthenticated) {
+        if (authData.authenticated) {
           toast({
             title: "Success!",
             description: "Successfully signed in with Google",
@@ -77,18 +97,21 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
           }
           
           // Clean up URL parameters
-          window.history.replaceState({}, document.title, window.location.pathname);
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('auth');
+          newUrl.searchParams.delete('token');
+          newUrl.searchParams.delete('error');
+          window.history.replaceState({}, document.title, newUrl.toString());
           
-          // Don't reload the page - let the parent component handle the state update
         } else {
-          console.error('User not authenticated despite success redirect');
+          console.error('Token validation failed');
           toast({
             title: "Authentication Error",
-            description: "Session not established. Please try again.",
+            description: "Token validation failed. Please try again.",
             variant: "destructive"
           });
         }
-      }, 1500); // Give a bit more time for session to establish
+      }, 500); // Brief delay to ensure token is stored
     }
 
     if (error || authStatus === 'failed') {
@@ -106,9 +129,13 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
       });
 
       // Clean up URL parameters
-      window.history.replaceState({}, document.title, window.location.pathname);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('auth');
+      newUrl.searchParams.delete('token');
+      newUrl.searchParams.delete('error');
+      window.history.replaceState({}, document.title, newUrl.toString());
     }
-  }, [toast, onOpenChange, onAuthSuccess]);
+  }, [toast, onOpenChange, onAuthSuccess, API_BASE_URL]);
 
   const handleOAuthLogin = async (provider: string) => {
     setIsLoading(provider.toLowerCase());
@@ -135,14 +162,20 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Important for cookies
         body: JSON.stringify({ email, password }),
       });
 
       if (response.ok) {
+        const data = await response.json();
+        
+        // Store JWT token if provided
+        if (data.token) {
+          setToken(data.token);
+        }
+        
         const authData = await checkAuthStatus();
         
-        if (authData.isAuthenticated) {
+        if (authData.authenticated) {
           toast({
             title: "Welcome back!",
             description: "Successfully signed in with email",
@@ -205,8 +238,7 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
             )}
           </Button>
 
-          {/* Email Form - Commented out as in original */}
-          {/* 
+          {/* Email Form - Updated for JWT */}
           <div className="relative">
             <Separator className="my-6" />
             <div className="absolute inset-0 flex items-center justify-center">
@@ -258,7 +290,6 @@ const OAuthModal = ({ open, onOpenChange, onAuthSuccess }: OAuthModalProps) => {
               )}
             </Button>
           </form>
-          */}
         </div>
       </DialogContent>
     </Dialog>

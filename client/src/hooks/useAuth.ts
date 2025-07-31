@@ -35,6 +35,29 @@ interface AuthState {
   error: string | null;
 }
 
+// JWT Token Management
+const TOKEN_KEY = 'culturesense_token';
+
+const getToken = (): string | null => {
+  return localStorage.getItem(TOKEN_KEY);
+};
+
+const setToken = (token: string): void => {
+  localStorage.setItem(TOKEN_KEY, token);
+};
+
+const removeToken = (): void => {
+  localStorage.removeItem(TOKEN_KEY);
+};
+
+const createAuthHeaders = (): HeadersInit => {
+  const token = getToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` })
+  };
+};
+
 export const useAuth = () => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -47,38 +70,51 @@ export const useAuth = () => {
     error: null,
   });
 
-  const API_BASE_URL = import.meta.env.VITE_APP_BACKEND_URL
+  const API_BASE_URL = import.meta.env.VITE_APP_BACKEND_URL;
+
+  // Extract token from URL (for OAuth callback)
+  const extractTokenFromUrl = useCallback(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    
+    if (token) {
+      console.log('🔑 Token found in URL, storing...');
+      setToken(token);
+      
+      // Clean URL by removing token parameter
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('token');
+      window.history.replaceState({}, document.title, newUrl.toString());
+      
+      return token;
+    }
+    
+    return null;
+  }, []);
 
   const fetchUserData = useCallback(async () => {
     try {
       setAuthState(prev => ({ ...prev, loading: true, error: null }));
 
-      // First check authentication status
-      const authCheck = await fetch(`${API_BASE_URL}/auth/status`, { 
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!authCheck.ok) {
-        throw new Error('Not authenticated. Please log in.');
+      const token = getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
       }
 
       // Fetch user profile first (most critical)
       let profile, preferences, analytics, favoritesData, recommendationsData;
 
       try {
-        const profileRes = await fetch(`${API_BASE_URL}/auth/profile`, { 
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          }
+        const profileRes = await fetch(`${API_BASE_URL}/auth/status`, { 
+          headers: createAuthHeaders()
         });
         
         if (!profileRes.ok) {
-          const errorText = await profileRes.text();
-          console.error('Profile fetch error:', errorText);
+          if (profileRes.status === 401 || profileRes.status === 403) {
+            // Token is invalid, remove it
+            removeToken();
+            throw new Error('Authentication token expired');
+          }
           throw new Error(`Profile fetch failed: ${profileRes.status}`);
         }
         
@@ -86,25 +122,13 @@ export const useAuth = () => {
         profile = profileData.user;
       } catch (profileError) {
         console.error('Profile error:', profileError);
-        // Set default profile if fetch fails
-        profile = {
-          id: 'guest',
-          email: '',
-          name: 'Cultural Explorer',
-          bio: 'Welcome to your cultural journey',
-          avatar: null,
-          tier: 'Explorer',
-          memberSince: new Date().toISOString()
-        };
+        throw profileError; // Re-throw to handle in outer catch
       }
 
       // Fetch preferences with fallback
       try {
         const preferencesRes = await fetch(`${API_BASE_URL}/auth/preferences`, { 
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          }
+          headers: createAuthHeaders()
         });
         
         if (preferencesRes.ok) {
@@ -128,10 +152,7 @@ export const useAuth = () => {
       // Fetch optional data (non-critical)
       try {
         const analyticsRes = await fetch(`${API_BASE_URL}/user/analytics`, { 
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          }
+          headers: createAuthHeaders()
         });
         analytics = analyticsRes.ok ? await analyticsRes.json() : { stats: {} };
       } catch (analyticsError) {
@@ -141,10 +162,7 @@ export const useAuth = () => {
 
       try {
         const favoritesRes = await fetch(`${API_BASE_URL}/user/favorites`, { 
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          }
+          headers: createAuthHeaders()
         });
         favoritesData = favoritesRes.ok ? await favoritesRes.json() : [];
       } catch (favError) {
@@ -154,10 +172,7 @@ export const useAuth = () => {
 
       try {
         const recommendationsRes = await fetch(`${API_BASE_URL}/user/recommendations`, { 
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          }
+          headers: createAuthHeaders()
         });
         recommendationsData = recommendationsRes.ok ? await recommendationsRes.json() : [];
       } catch (recError) {
@@ -181,27 +196,17 @@ export const useAuth = () => {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       console.error('Error fetching user data:', err);
       
-      // Set minimal fallback data so component still renders
+      // Clear token if authentication failed
+      if (errorMessage.includes('token') || errorMessage.includes('Authentication')) {
+        removeToken();
+      }
+      
+      // Set unauthenticated state
       setAuthState({
         isAuthenticated: false,
-        user: {
-          id: 'guest',
-          email: '',
-          name: 'Guest User',
-          bio: 'Please log in to view your profile',
-          avatar: null,
-          tier: 'Guest',
-          memberSince: new Date().toISOString()
-        },
-        userPreferences: {
-          culturalProfile: {},
-          settings: {
-            notifications: true,
-            publicProfile: false,
-            aiInsights: true
-          }
-        },
-        userAnalytics: { stats: {} },
+        user: null,
+        userPreferences: null,
+        userAnalytics: null,
         favorites: [],
         recommendations: [],
         loading: false,
@@ -211,16 +216,35 @@ export const useAuth = () => {
   }, [API_BASE_URL]);
 
   const checkAuthStatus = useCallback(async () => {
-     try {
+    try {
       console.log('🔍 Checking auth status...');
       setAuthState(prev => ({ ...prev, loading: true, error: null }));
       
-      const response = await fetch(`${API_BASE_URL}/auth/status`, {
+      // First check if there's a token in the URL (OAuth callback)
+      const urlToken = extractTokenFromUrl();
+      
+      // Get token from storage or URL
+      const token = urlToken || getToken();
+      
+      if (!token) {
+        console.log('❌ No token found');
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          userPreferences: null,
+          userAnalytics: null,
+          favorites: [],
+          recommendations: [],
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+
+      // Use public status endpoint that doesn't require auth
+      const response = await fetch(`${API_BASE_URL}/auth/status/public`, {
         method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: createAuthHeaders()
       });
 
       console.log('📡 Auth status response status:', response.status);
@@ -229,8 +253,7 @@ export const useAuth = () => {
         const data = await response.json();
         console.log('📦 Auth status data:', data);
         
-        // Fix: Check for 'isAuthenticated' not 'authenticated'
-        if (data.isAuthenticated) {
+        if (data.authenticated) {
           console.log('✅ User is authenticated');
           setAuthState(prev => ({
             ...prev,
@@ -240,13 +263,11 @@ export const useAuth = () => {
             error: null,
           }));
           
-          // Optionally fetch additional user data
-          if (data) {
-            // You already have basic user data, but you might want to fetch more
-            await fetchUserData();
-          }
+          // Fetch additional user data
+          await fetchUserData();
         } else {
           console.log('❌ User is not authenticated');
+          removeToken(); // Clear invalid token
           setAuthState({
             isAuthenticated: false,
             user: null,
@@ -260,8 +281,10 @@ export const useAuth = () => {
         }
       } else {
         console.error('❌ Auth status check failed:', response.status);
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
+        
+        if (response.status === 401 || response.status === 403) {
+          removeToken(); // Clear invalid token
+        }
         
         setAuthState({
           isAuthenticated: false,
@@ -287,33 +310,35 @@ export const useAuth = () => {
         error: 'Network error occurred',
       });
     }
-  }, [API_BASE_URL, fetchUserData]);
+  }, [API_BASE_URL, extractTokenFromUrl, fetchUserData]);
 
   const logout = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+      // Call backend logout endpoint (optional with JWT)
+      await fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
-        credentials: 'include',
+        headers: createAuthHeaders()
       });
-
-      if (response.ok) {
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          userPreferences: null,
-          userAnalytics: null,
-          favorites: [],
-          recommendations: [],
-          loading: false,
-          error: null,
-        });
-        
-        // Redirect to home page or login page
-        window.location.href = '/';
-      }
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Logout API error:', error);
+      // Continue with local logout even if API fails
     }
+
+    // Clear local token and state
+    removeToken();
+    setAuthState({
+      isAuthenticated: false,
+      user: null,
+      userPreferences: null,
+      userAnalytics: null,
+      favorites: [],
+      recommendations: [],
+      loading: false,
+      error: null,
+    });
+    
+    // Redirect to home page
+    window.location.href = '/';
   }, [API_BASE_URL]);
 
   const refreshUser = useCallback(() => {
@@ -337,6 +362,7 @@ export const useAuth = () => {
     }));
   }, []);
 
+  // Initialize auth on mount
   useEffect(() => {
     checkAuthStatus();
   }, [checkAuthStatus]);
@@ -349,5 +375,8 @@ export const useAuth = () => {
     fetchUserData,
     updateUserPreferences,
     updateUser,
+    // Utility functions for other components
+    getToken,
+    createAuthHeaders,
   };
 };

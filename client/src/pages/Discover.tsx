@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Search, Star, Heart, TrendingUp, Grid2X2 } from "lucide-react";
 import axios from "axios";
+import { api } from "@/utils/api";
 
 const Discover = () => {
   const [activeCategory, setActiveCategory] = useState("all");
@@ -34,51 +35,51 @@ const Discover = () => {
   // Backend API base URL
   const API_BASE_URL = import.meta.env.VITE_APP_BACKEND_URL;
 
-  // Fetch discovery stats
-  const fetchStats = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/discover/stats`);
-      if (response.data.success) {
-        const statsData = response.data.stats;
-        
-        // Calculate total categories from categories object
-        const categoriesTotal = statsData.categories 
-          ? Object.keys(statsData.categories).length 
-          : 0;
+const fetchStats = async () => {
+  try {
+   const response = await api.get('/discover/stats'); // Raw fetch
+    const data = await response.json(); // ← Explicit JSON parsing
+    
+    const statsData = data.stats || data.data?.stats || {};
+    console.log(data,response)
+    // Calculate total categories from categories object
+    const categoriesTotal = statsData.categories 
+      ? Object.keys(statsData.categories).length 
+      : 0;
 
-        setStats({
-          averageRating: statsData.averageRating || 0,
-          totalDiscoveries: statsData.totalDiscoveries || 0,
-          trending: statsData.trending || 0,
-          categoriesTotal: categoriesTotal,
-          recentlyAdded: statsData.recentlyAdded || 0
-        });
+    setStats({
+      averageRating: statsData.averageRating || 0,
+      totalDiscoveries: statsData.totalDiscoveries || 0,
+      trending: statsData.trending || 0,
+      categoriesTotal: categoriesTotal,
+      recentlyAdded: statsData.recentlyAdded || 0
+    });
 
-        // Build categories array from backend data
-        if (statsData.categories) {
-          const categoriesArray = [
-            {
-              id: "all",
-              label: "All Categories",
-              count: statsData.totalDiscoveries || 0,
-              type: "all",
-              defaultTag: null,
-            },
-            ...Object.entries(statsData.categories).map(([key, count]) => ({
-              id: key,
-              label: key.charAt(0).toUpperCase() + key.slice(1),
-              count: count,
-              type: key,
-              defaultTag: getDefaultTagForCategory(key),
-            }))
-          ];
-          setCategories(categoriesArray);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch stats:", err);
+    // Build categories array from backend data
+    if (statsData.categories) {
+      const categoriesArray = [
+        {
+          id: "all",
+          label: "All Categories",
+          count: statsData.totalDiscoveries || 0,
+          type: "all",
+          defaultTag: null,
+        },
+        ...Object.entries(statsData.categories).map(([key, count]) => ({
+          id: key,
+          label: key.charAt(0).toUpperCase() + key.slice(1),
+          count: count,
+          type: key,
+          defaultTag: getDefaultTagForCategory(key),
+        }))
+      ];
+      setCategories(categoriesArray);
     }
-  };
+  } catch (err) {
+    console.error("Failed to fetch stats:", err);
+  }
+};
+
 
   // Helper function to get default tags for categories
   const getDefaultTagForCategory = (category) => {
@@ -92,124 +93,126 @@ const Discover = () => {
     return tagMap[category] || null;
   };
 
-  // Fetch trending discoveries
-  const fetchTrendingDiscoveries = async (categoryId, append = false) => {
-    try {
-      const category = categories.find(cat => cat.id === categoryId);
-      const params = { 
-        ...(categoryId !== "all" ? { type: category?.type } : {}),
-        page: append ? Math.ceil(trendingDiscoveries.length / ITEMS_PER_PAGE) + 1 : 1,
-        limit: ITEMS_PER_PAGE
-      };
+
+const fetchTrendingDiscoveries = async (categoryId, append = false) => {
+  try {
+    const category = categories.find(cat => cat.id === categoryId);
+    const params = { 
+      ...(categoryId !== "all" ? { type: category?.type } : {}),
+      page: append ? Math.ceil(trendingDiscoveries.length / ITEMS_PER_PAGE) + 1 : 1,
+      limit: ITEMS_PER_PAGE
+    };
+    
+    const response: any = await api.get('/discover/trending', { params });
+    const data = await response.json();
+
+    if (data.success) {
+      const formattedTrending = data.trending.map(formatDiscoveryItem);
+      if (append) {
+        setTrendingDiscoveries(prev => [...prev, ...formattedTrending]);
+      } else {
+        setTrendingDiscoveries(formattedTrending);
+      }
       
-      const response = await axios.get(`${API_BASE_URL}/discover/trending`, { params });
-
-      if (response.data.success) {
-        const formattedTrending = response.data.trending.map(formatDiscoveryItem);
-        if (append) {
-          setTrendingDiscoveries(prev => [...prev, ...formattedTrending]);
-        } else {
-          setTrendingDiscoveries(formattedTrending);
-        }
-        
-        // Check if there's more data
-        setHasMoreData(formattedTrending.length === ITEMS_PER_PAGE);
-      }
-    } catch (err) {
-      console.error("Failed to fetch trending discoveries:", err);
+      setHasMoreData(formattedTrending.length === ITEMS_PER_PAGE);
     }
-  };
+  } catch (err) {
+    console.error("Failed to fetch trending discoveries:", err);
+  }
+};
 
-  // Fetch personalized discoveries
-  const fetchPersonalizedDiscoveries = async (categoryId, append = false) => {
-    try {
-      const category = categories.find(cat => cat.id === categoryId);
-      const params = { 
-        ...(categoryId !== "all" ? { type: category?.type } : {}),
-        page: append ? Math.ceil(personalizedDiscoveries.length / ITEMS_PER_PAGE) + 1 : 1,
-        limit: ITEMS_PER_PAGE
-      };
+const fetchPersonalizedDiscoveries = async (categoryId, append = false) => {
+  try {
+    const category = categories.find(cat => cat.id === categoryId);
 
-      const response = await axios.get(`${API_BASE_URL}/discover/personalized`, {
-        params,
-        withCredentials: true,
-      });
+    const queryParams = new URLSearchParams({
+      ...(categoryId !== "all" ? { type: category?.type || '' } : {}),
+      page: (append ? Math.ceil(personalizedDiscoveries.length / ITEMS_PER_PAGE) + 1 : 1).toString(),
+      limit: ITEMS_PER_PAGE.toString(),
+    });
 
-      if (response.data.success) {
-        // Handle the nested structure: response.data.data.recommendations
-        const recommendations = response.data.data?.recommendations || response.data.data || [];
-        const formattedPersonalized = recommendations.map(formatDiscoveryItem);
-        
-        if (append) {
-          setPersonalizedDiscoveries(prev => [...prev, ...formattedPersonalized]);
-        } else {
-          setPersonalizedDiscoveries(formattedPersonalized);
-        }
-        
-        // Check if there's more data
-        if (!append || formattedPersonalized.length < ITEMS_PER_PAGE) {
-          setHasMoreData(formattedPersonalized.length === ITEMS_PER_PAGE);
-        }
+    const response = await api.get(`/discover/personalized?${queryParams}`);
+    const data = await response.json();
+
+    if (data.success) {
+      const recommendations = data?.recommendations || [];
+      const formattedPersonalized = recommendations.map(formatDiscoveryItem);
+      
+      if (append) {
+        setPersonalizedDiscoveries(prev => [...prev, ...formattedPersonalized]);
+      } else {
+        setPersonalizedDiscoveries(formattedPersonalized);
       }
-    } catch (err) {
-      console.error("Failed to fetch personalized discoveries:", err);
-      if (!append) {
-        fetchInsights(); // Fallback only for initial load
+
+      if (!append || formattedPersonalized.length < ITEMS_PER_PAGE) {
+        setHasMoreData(formattedPersonalized.length === ITEMS_PER_PAGE);
       }
     }
-  };
+  } catch (err) {
+    console.error("Failed to fetch personalized discoveries:", err);
+    if (!append) {
+      fetchInsights();
+    }
+  }
+};
+
 
   // Fetch general insights (fallback)
-  const fetchInsights = async (append = false) => {
-    try {
-      const selectedCategory = categories.find((cat) => cat.id === activeCategory) || categories[0];
-      if (!selectedCategory) return;
+const fetchInsights = async (append = false) => {
+  try {
+    const selectedCategory = categories.find(cat => cat.id === activeCategory) || categories[0];
+    if (!selectedCategory) return;
 
-      const params = {
-        type: selectedCategory.type,
-        limit: ITEMS_PER_PAGE,
-        page: append ? Math.ceil(discoveries.length / ITEMS_PER_PAGE) + 1 : 1,
-      };
+    const queryParams = new URLSearchParams({
+      type: selectedCategory.type,
+      limit: ITEMS_PER_PAGE.toString(),
+      page: (append ? Math.ceil(discoveries.length / ITEMS_PER_PAGE) + 1 : 1).toString(),
+    });
 
-      if (activeCategory !== "all" && selectedCategory.defaultTag) {
-        // @ts-expect-error: fallback case
-        params.tags = selectedCategory.defaultTag;
-      }
-
-      const response = await axios.get(`${API_BASE_URL}/discover/insights`, { params });
-
-      if (response.data.success) {
-        const formattedDiscoveries = response.data.discoveries.map(formatDiscoveryItem);
-        if (append) {
-          setDiscoveries(prev => [...prev, ...formattedDiscoveries]);
-        } else {
-          setDiscoveries(formattedDiscoveries);
-        }
-        
-        // Check if there's more data
-        if (!append || formattedDiscoveries.length < ITEMS_PER_PAGE) {
-          setHasMoreData(formattedDiscoveries.length === ITEMS_PER_PAGE);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch insights:", err);
-      setError(err.response?.data?.message || err.message);
+    if (activeCategory !== "all" && selectedCategory.defaultTag) {
+      queryParams.append('tags', selectedCategory.defaultTag);
     }
-  };
+
+    const response = await api.get(`/discover/insights?${queryParams}`);
+    const data = await response.json();
+
+    if (data.success) {
+      const formattedDiscoveries = data.discoveries.map(formatDiscoveryItem);
+
+      if (append) {
+        setDiscoveries(prev => [...prev, ...formattedDiscoveries]);
+      } else {
+        setDiscoveries(formattedDiscoveries);
+      }
+
+      if (!append || formattedDiscoveries.length < ITEMS_PER_PAGE) {
+        setHasMoreData(formattedDiscoveries.length === ITEMS_PER_PAGE);
+      }
+    }
+  } catch (err: any) {
+    console.error("Failed to fetch insights:", err);
+    setError(err.message || "Something went wrong");
+  }
+};
+
 
 // Add this function to fetch user favorites
+
 const fetchUserFavorites = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/user/favorites`, {
-      withCredentials: true
-    });
-    if (response.data.success) {
-      setUserFavorites(response.data.favorites || []);
+    const response = await api.get('/user/favorites');
+    const data = await response.json();
+
+    if (data.success) {
+      setUserFavorites(data.favorites || []);
+    } else {
+      console.warn("Unexpected response structure:", data);
     }
   } catch (err) {
     console.error("Failed to fetch user favorites:", err);
   }
 };
+
 
 // Add this function to handle favorite changes
 const handleFavoriteChange = (itemId, isFavorited) => {
@@ -229,41 +232,43 @@ const isItemFavorited = (itemId) => {
 
 
   // Search discoveries
-  const handleSearch = async (query, append = false) => {
-    if (!query.trim()) {
-      setSearchQuery("");
-      return;
-    }
+  const handleSearch = async (query: string, append = false) => {
+  if (!query.trim()) {
+    setSearchQuery("");
+    return;
+  }
 
-    if (!append) setSearchLoading(true);
-    try {
-      const params = {
-        q: query,
-        type: activeCategory !== "all" ? categories.find(cat => cat.id === activeCategory)?.type : undefined,
-        limit: ITEMS_PER_PAGE,
-        page: append ? Math.ceil(discoveries.length / ITEMS_PER_PAGE) + 1 : 1
-      };
+  if (!append) setSearchLoading(true);
+  try {
+    const params = {
+      q: query,
+      type: activeCategory !== "all"
+        ? categories.find(cat => cat.id === activeCategory)?.type
+        : undefined,
+      limit: ITEMS_PER_PAGE,
+      page: append ? Math.ceil(discoveries.length / ITEMS_PER_PAGE) + 1 : 1
+    };
 
-      const response = await axios.get(`${API_BASE_URL}/discover/search`, { params });
+    const data: any = await api.get('/discover/search', { params });
 
-      if (response.data.success) {
-        const formattedResults = response.data.results.map(formatDiscoveryItem);
-        if (append) {
-          setDiscoveries(prev => [...prev, ...formattedResults]);
-        } else {
-          setDiscoveries(formattedResults);
-        }
-        
-        // Check if there's more data
-        setHasMoreData(formattedResults.length === ITEMS_PER_PAGE);
+    if (data.success) {
+      const formattedResults = data.results.map(formatDiscoveryItem);
+
+      if (append) {
+        setDiscoveries(prev => [...prev, ...formattedResults]);
+      } else {
+        setDiscoveries(formattedResults);
       }
-    } catch (err) {
-      console.error("Search failed:", err);
-      setError(err.response?.data?.message || err.message);
-    } finally {
-      if (!append) setSearchLoading(false);
+
+      setHasMoreData(formattedResults.length === ITEMS_PER_PAGE);
     }
-  };
+  } catch (err: any) {
+    console.error("Search failed:", err);
+    setError(err.message || "Search failed. Please try again.");
+  } finally {
+    if (!append) setSearchLoading(false);
+  }
+};
 
   // Format discovery item to match component expectations
   const formatDiscoveryItem = (item, index = 0) => {
@@ -396,7 +401,7 @@ const isItemFavorited = (itemId) => {
         }
         return acc;
       }, []);
-console.log(trendingDiscoveries);
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />

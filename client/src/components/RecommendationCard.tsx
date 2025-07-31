@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Heart, Star, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
+import { api } from "@/utils/api";
 
 interface RecommendationCardProps {
   id: string; // Make sure this is passed from parent
@@ -41,61 +42,56 @@ const RecommendationCard = ({
   const API_BASE_URL = import.meta.env.VITE_APP_BACKEND_URL;
 
   const handleFavoriteToggle = async () => {
-    if (isLoading) return;
-    
-    setIsLoading(true);
-    
-    try {
-      if (favorited) {
-        // Remove from favorites
-        await axios.delete(`${API_BASE_URL}/auth/favorites/${id}`, {
-          withCredentials: true
-        });
-        
-        setFavorited(false);
-        toast({
-          title: "Removed from favorites",
-          description: `${title} has been removed from your favorites.`,
-        });
-      } else {
-        // Add to favorites
-        const favoriteData = {
-          title,
-          description,
-          category,
-          itemType: category, // Using category as itemType
-          rating,
-          image,
-          url: website,
-          tags,
-          itemId: id // This will be used as the unique identifier
-        };
-
-        await axios.post(`${API_BASE_URL}/auth/favorites`, favoriteData, {
-          withCredentials: true
-        });
-        
-        setFavorited(true);
-        toast({
-          title: "Added to favorites",
-          description: `${title} has been added to your favorites.`,
-        });
-      }
+  if (isLoading) return;
+  
+  setIsLoading(true);
+  
+  try {
+    if (favorited) {
+      // Remove from favorites
+      await api.delete(`/auth/favorites/${id}`);
       
-      // Notify parent component of the change
-      onFavoriteChange?.(id, !favorited);
-      
-    } catch (error) {
-      console.error("Failed to toggle favorite:", error);
+      setFavorited(false);
       toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to update favorites. Please try again.",
-        variant: "destructive",
+        title: "Removed from favorites",
+        description: `${title} has been removed from your favorites.`,
       });
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Add to favorites
+      const favoriteData = {
+        title,
+        description,
+        category,
+        itemType: category,
+        rating,
+        image,
+        url: website,
+        tags,
+        itemId: id
+      };
+
+      await api.post('/auth/favorites', favoriteData);
+      
+      setFavorited(true);
+      toast({
+        title: "Added to favorites",
+        description: `${title} has been added to your favorites.`,
+      });
     }
-  };
+    
+    onFavoriteChange?.(id, !favorited);
+    
+  } catch (error) {
+    console.error("Failed to toggle favorite:", error);
+    toast({
+      title: "Error",
+      description: error.message || "Failed to update favorites. Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <Card className="glass-card hover-lift group overflow-hidden">

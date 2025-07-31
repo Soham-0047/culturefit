@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { api } from '@/utils/api';
 
 interface UseUserPreferencesReturn {
   hasPreferences: boolean;
@@ -7,6 +8,13 @@ interface UseUserPreferencesReturn {
   error: string | null;
   refetch: () => void;
 }
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("culturetoken"); // or use getToken()
+  return {
+    Authorization: `Bearer ${token}`,
+  };
+};
 
 export const useUserPreferences = (): UseUserPreferencesReturn => {
   const [hasPreferences, setHasPreferences] = useState<boolean>(false);
@@ -17,28 +25,27 @@ export const useUserPreferences = (): UseUserPreferencesReturn => {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await axios.get(`${import.meta.env.VITE_APP_BACKEND_URL}/auth/preferences`, {
-        withCredentials: true
-      });
-      
-      // Check if user has any preferences set
-      const preferences = response.data;
-      const hasAnyPreferences = preferences && (
-        (preferences.categories && preferences.categories.length > 0 && !preferences.categories.includes('all')) ||
-        (preferences.favoriteGenres && preferences.favoriteGenres.length > 0) ||
-        (preferences.culturalTags && preferences.culturalTags.length > 0) ||
-        (preferences.moodPreferences && preferences.moodPreferences.length > 0)
-      );
-      
+
+      const response: any = await api.get('/auth/preferences');
+
+      const preferences = await response.json();
+      const hasAnyPreferences =
+        preferences &&
+        ((preferences.categories?.length > 0 && !preferences.categories.includes("all")) ||
+          preferences.favoriteGenres?.length > 0 ||
+          preferences.culturalTags?.length > 0 ||
+          preferences.moodPreferences?.length > 0);
+
       setHasPreferences(hasAnyPreferences);
     } catch (err: any) {
-      // If we get a 404 or similar error, it means no preferences exist
+      console.error("Error fetching preferences:", err.response?.status, err.response?.data);
+
       if (err.response?.status === 404) {
         setHasPreferences(false);
+      } else if (err.response?.status === 401 || err.response?.status === 403) {
+        setError("Unauthorized: Please log in again");
       } else {
-        setError('Failed to fetch user preferences');
-        console.error('Error fetching preferences:', err);
+        setError("Failed to fetch user preferences");
       }
     } finally {
       setLoading(false);
@@ -49,14 +56,10 @@ export const useUserPreferences = (): UseUserPreferencesReturn => {
     fetchPreferences();
   }, []);
 
-  const refetch = () => {
-    fetchPreferences();
-  };
-
   return {
     hasPreferences,
     loading,
     error,
-    refetch
+    refetch: fetchPreferences,
   };
 };

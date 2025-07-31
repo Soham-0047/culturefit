@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { api, removeToken } from "@/utils/api";
 
 const Navigation = () => {
   const location = useLocation();
@@ -41,25 +42,32 @@ const Navigation = () => {
     setDropdownOpen((prev) => !prev);
   };
 
-  const handleLogout = async () => {
-    try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_APP_BACKEND_URL}/auth/logout`,
-        {},
-        { withCredentials: true } // 👈 important for cookie/session support
-      );
-
-      if (response.data.success) {
-        // Clear local state if needed
-        // Redirect to login or home page
-        navigate("/");
-      } else {
-        console.error("Logout failed:", response.data.message);
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  };
+const handleLogout = async () => {
+  try {
+    // Use your api utility instead of axios directly
+    const response = await api.post('/auth/logout');
+    
+    // Always remove the token from localStorage on logout
+    removeToken(); // 👈 This comes from your api.ts utility
+    
+    // Clear any local user state if needed
+    // For example, if you're using React context or Zustand:
+    // setUser(null);
+    
+    // Redirect to login or home page
+    navigate("/", { 
+      state: { 
+        message: "You've been logged out successfully" 
+      } 
+    });
+    
+  } catch (error) {
+    console.error("Logout error:", error);
+    // Even if the API call fails, we should clear the local token
+    removeToken();
+    navigate("/");
+  }
+};
 
   // Close dropdown on outside click
   useEffect(() => {

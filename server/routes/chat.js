@@ -1,7 +1,7 @@
 // server/routes/chat.js
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../config/auth');
+const { verifyToken } = require('../config/auth');
 // Uncomment if using Node.js < 18
 // const fetch = require('node-fetch');
 
@@ -124,7 +124,7 @@ async function getAIResponse(prompt) {
 }
 
 // POST /chat/message - Send message to AI
-router.post('/message', requireAuth, async (req, res) => {
+router.post('/message', verifyToken, async (req, res) => {
   try {
     console.log('Received chat message request from user:', req.user._id);
 
@@ -253,7 +253,7 @@ function generateSuggestions(userMessage, aiResponse) {
 }
 
 // GET /chat/history - Get chat history for authenticated user
-router.get('/history', requireAuth, async (req, res) => {
+router.get('/history', verifyToken, async (req, res) => {
   try {
     const userId = req.user._id.toString();
     const history = chatHistories.get(userId) || [];
@@ -265,7 +265,7 @@ router.get('/history', requireAuth, async (req, res) => {
 });
 
 // POST /chat/clear - Clear chat history
-router.post('/clear', requireAuth, async (req, res) => {
+router.post('/clear', verifyToken, async (req, res) => {
   try {
     const userId = req.user._id.toString();
     chatHistories.delete(userId);
@@ -277,7 +277,7 @@ router.post('/clear', requireAuth, async (req, res) => {
 });
 
 // GET /chat/suggestions - Get contextual suggestions
-router.get('/suggestions', requireAuth, async (req, res) => {
+router.get('/suggestions', verifyToken, async (req, res) => {
   try {
     const suggestions = [
       'Analyze my cultural preferences',

@@ -1,7 +1,8 @@
 const express = require('express');
 const passport = require('passport');
 const User = require('../models/User');
-const { requireAuth } = require('../config/auth');
+const { requireAuth, verifyToken } = require('../config/auth');
+const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
@@ -51,50 +52,44 @@ router.get('/google',
 //   }
 // );
 
-
+// Google OAuth callback - UPDATED
 router.get('/google/callback',
-  passport.authenticate('google', {
+  passport.authenticate('google', { 
+    session: false, // DISABLE SESSION
     failureRedirect: `${process.env.FRONTEND_URL}/?auth=failed`,
-    failureMessage: true
+    failureMessage: true 
   }),
   async (req, res) => {
     try {
       console.log('=== CALLBACK START ===');
       console.log('req.user:', req.user ? req.user.email : 'NO USER');
-      console.log('req.isAuthenticated():', req.isAuthenticated());
-      console.log('req.session:', req.session ? 'EXISTS' : 'NO SESSION');
-      console.log('req.sessionID:', req.sessionID);
 
       if (!req.user) {
         console.error('❌ No user found in callback');
         return res.redirect(`${process.env.FRONTEND_URL}/?auth=failed&error=no_user`);
       }
 
-      // Update user record
+      // Update user's last login
       await User.findByIdAndUpdate(req.user._id, {
         lastLogin: new Date(),
         $inc: { loginCount: 1 }
       });
 
-      // ✅ Force session save
-      await new Promise((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) {
-            console.error('❌ Session save error:', err);
-            return reject(err);
-          }
-          console.log('✅ Session saved successfully');
-          resolve();
-        });
-      });
+      // CREATE JWT TOKEN
+      const token = jwt.sign(
+        { 
+          userId: req.user._id,
+          email: req.user.email,
+          name: req.user.name
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
 
-      // ⏳ Optional delay
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      console.log('✅ JWT token created, redirecting to frontend');
 
-      // ✅ Now safe to redirect
-      const redirectURL = `${process.env.FRONTEND_URL}/discover?auth=success`;
-      console.log('✅ Redirecting to frontend:', redirectURL);
-      res.redirect(redirectURL);
+      // Redirect with token in URL (temporary - will be stored in localStorage)
+      res.redirect(`${process.env.FRONTEND_URL}/discover?auth=success&token=${token}`);
 
       console.log('=== CALLBACK END ===');
     } catch (error) {
@@ -104,32 +99,63 @@ router.get('/google/callback',
   }
 );
 
-
-
-router.get('/status', (req, res) => {
-  if (req.isAuthenticated()) {
-    res.json({
-      authenticated: true,
-      user: {
-        id: req.user._id,
-        email: req.user.email,
-        name: req.user.name,
-        picture: req.user.avatar,
-        preferences: req.user.preferences,
-        culturalProfile: req.user.culturalProfile,
-        memberSince: req.user.createdAt
-      }
-    });
-  } else {
-    res.json({
-      authenticated: false,
-      user: null
-    });
-  }
+// UPDATED status endpoint
+router.get('/status', verifyToken, (req, res) => {
+  res.json({
+    authenticated: true,
+    user: {
+      id: req.user._id,
+      email: req.user.email,
+      name: req.user.name,
+      picture: req.user.avatar,
+      preferences: req.user.preferences,
+      culturalProfile: req.user.culturalProfile,
+      memberSince: req.user.createdAt
+    }
+  });
 });
 
+// NEW: Public status endpoint (no auth required)
+router.get('/status/public', (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.json({ authenticated: false, user: null });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
+    if (err) {
+      return res.json({ authenticated: false, user: null });
+    }
+
+    try {
+      const user = await User.findById(decoded.userId);
+      if (!user) {
+        return res.json({ authenticated: false, user: null });
+      }
+
+      res.json({
+        authenticated: true,
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          picture: user.avatar,
+          preferences: user.preferences,
+          culturalProfile: user.culturalProfile,
+          memberSince: user.createdAt
+        }
+      });
+    } catch (error) {
+      res.json({ authenticated: false, user: null });
+    }
+  });
+});
+
+
 // Get current user profile
-router.get('/profile', requireAuth, async (req, res) => {
+router.get('/profile', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-__v');
     res.json({
@@ -162,7 +188,7 @@ router.get('/profile', requireAuth, async (req, res) => {
 });
 
 // GET /api/user/preferences - Get user preferences
-router.get('/preferences', async (req, res) => {
+router.get('/preferences',verifyToken, async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -190,7 +216,7 @@ router.get('/preferences', async (req, res) => {
 });
 
 // POST /api/user/preferences - Save user preferences
-router.post('/preferences', async (req, res) => {
+router.post('/preferences',verifyToken, async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -276,7 +302,7 @@ router.post('/preferences', async (req, res) => {
 });
 
 // PUT /api/user/preferences - Update specific preference fields
-router.put('/preferences', async (req, res) => {
+router.put('/preferences',verifyToken, async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -340,7 +366,7 @@ router.put('/preferences', async (req, res) => {
 });
 
 // Update cultural profile
-router.put('/cultural-profile', requireAuth, async (req, res) => {
+router.put('/cultural-profile', verifyToken, async (req, res) => {
   try {
     const { culturalProfile } = req.body;
 
@@ -378,7 +404,7 @@ router.put('/cultural-profile', requireAuth, async (req, res) => {
 });
 
 // Add to favorites
-router.post('/favorites', requireAuth, async (req, res) => {
+router.post('/favorites', verifyToken, async (req, res) => {
   try {
     const { itemId, itemType, title, description, image, url, category, tags } = req.body;
 
@@ -432,7 +458,7 @@ router.post('/favorites', requireAuth, async (req, res) => {
 });
 
 // Remove from favorites
-router.delete('/favorites/:itemId', requireAuth, async (req, res) => {
+router.delete('/favorites/:itemId', verifyToken, async (req, res) => {
   try {
     const { itemId } = req.params;
 
@@ -456,7 +482,7 @@ router.delete('/favorites/:itemId', requireAuth, async (req, res) => {
 });
 
 // Logout
-router.post('/logout', requireAuth, (req, res) => {
+router.post('/logout', verifyToken, (req, res) => {
   req.logout((err) => {
     if (err) {
       console.error('Logout error:', err);
@@ -485,7 +511,7 @@ router.post('/logout', requireAuth, (req, res) => {
 });
 
 // Delete account
-router.delete('/account', requireAuth, async (req, res) => {
+router.delete('/account', verifyToken, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.user._id);
 

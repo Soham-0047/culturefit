@@ -41,6 +41,7 @@ import {
   Share2,
 } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import { api } from "@/utils/api";
 
 const EnhancedInsights = () => {
  
@@ -366,80 +367,58 @@ const EnhancedInsights = () => {
   };
 
   // Fetch AI-powered insights
-  const fetchAIInsights = async (type) => {
-    setLoading(true);
-    setError(null);
+ const fetchAIInsights = async (type) => {
+  setLoading(true);
+  setError(null);
 
-    try {
-      let response;
-      switch (type) {
-        case "personality":
-          response = await fetch(
-            `${API_BASE_URL}/ai-insights/personality-analysis`,
-            {
-              credentials: "include",
-            }
-          );
-          break;
-        case "predictions":
-          response = await fetch(
-            `${API_BASE_URL}/ai-insights/trend-predictions?timeframe=${timeRange}`,
-            {
-              credentials: "include",
-            }
-          );
-          break;
-        case "recommendations":
-          response = await fetch(
-            `${API_BASE_URL}/ai-insights/smart-recommendations`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                mood: "exploratory",
-                context: "discovering new interests",
-              }),
-            }
-          );
-          break;
-        case "journey":
-          response = await fetch(
-            `${API_BASE_URL}/ai-insights/cultural-journey`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                goal: "Expand cultural horizons",
-                duration: "3 months",
-                intensity: "moderate",
-              }),
-            }
-          );
-          break;
-      }
+  try {
+    let response;
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to fetch insights");
-      }
+    switch (type) {
+      case "personality":
+        response = await api.get('/ai-insights/personality-analysis');
+        break;
 
-      const data = await response.json();
+      case "predictions":
+        response = await api.get(`/ai-insights/trend-predictions?timeframe=${timeRange}`);
+        break;
 
-      // Handle different response structures
-      if (type === "predictions" && data.predictions) {
-        setAiInsights((prev) => ({ ...prev, [type]: data.predictions }));
-      } else {
-        setAiInsights((prev) => ({ ...prev, [type]: data }));
-      }
-    } catch (err) {
-      setError(err.message);
-      console.error(`Error fetching ${type} insights:`, err);
-    } finally {
-      setLoading(false);
+      case "recommendations":
+        response = await api.post('/ai-insights/smart-recommendations', {
+          mood: "exploratory",
+          context: "discovering new interests",
+        });
+        break;
+
+      case "journey":
+        response = await api.post('/ai-insights/cultural-journey', {
+          goal: "Expand cultural horizons",
+          duration: "3 months",
+          intensity: "moderate",
+        });
+        break;
+
+      default:
+        throw new Error("Invalid insight type");
     }
-  };
+
+    const data = await response.json();
+
+    // Handle different response structures
+    if (type === "predictions" && data.predictions) {
+      setAiInsights((prev) => ({ ...prev, [type]: data.predictions }));
+    } else {
+      setAiInsights((prev) => ({ ...prev, [type]: data }));
+    }
+
+  } catch (err) {
+    console.error(`Error fetching ${type} insights:`, err);
+    setError(err.message || `Failed to fetch ${type} insights`);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Load initial data
   useEffect(() => {

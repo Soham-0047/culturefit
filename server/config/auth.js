@@ -1,8 +1,9 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Configure Google OAuth Strategy
+// Configure Google OAuth Strategy for JWT (no sessions)
 const configureGoogleAuth = () => {
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -84,66 +85,164 @@ const configureGoogleAuth = () => {
       return done(error, null);
     }
   }));
+
+  // No serialization needed for JWT - sessions are disabled
 };
 
-// Serialize user for session
-passport.serializeUser((user, done) => {
-  console.log('Serializing user:', user._id);
-  done(null, user._id);
-});
+// JWT verification middleware
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
-// Deserialize user from session
-passport.deserializeUser(async (id, done) => {
-  try {
-    const user = await User.findById(id);
-    console.log('Deserializing user:', user ? user.email : 'User not found');
-    done(null, user);
-  } catch (error) {
-    console.error('User deserialization error:', error);
-    done(error, null);
-  }
-});
-
-// Authentication middleware
-const requireAuth = (req, res, next) => {
-  console.log('Auth check - User:', req.user ? req.user.email : 'Not authenticated');
-  console.log('Auth check - Session:', req.session ? 'Session exists' : 'No session');
-
-  if (req.isAuthenticated()) {
-    return next();
+  if (!token) {
+    return res.status(401).json({ 
+      error: 'No token provided',
+      authenticated: false 
+    });
   }
 
-  res.status(401).json({
-    error: 'Authentication required',
-    authenticated: false
+  jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
+    if (err) {
+      console.error('JWT verification error:', err);
+      return res.status(403).json({ 
+        error: 'Invalid or expired token',
+        authenticated: false 
+      });
+    }
+
+    try {
+      const user = await User.findById(decoded.userId);
+      if (!user) {
+        return res.status(404).json({ 
+          error: 'User not found',
+          authenticated: false 
+        });
+      }
+
+      req.user = user;
+      next();
+    } catch (error) {
+      console.error('Database error in verifyToken:', error);
+      return res.status(500).json({ 
+        error: 'Database error',
+        authenticated: false 
+      });
+    }
   });
 };
 
-// Optional auth middleware (doesn't block if not authenticated)
+// Optional JWT verification (doesn't require auth)
 const optionalAuth = (req, res, next) => {
-  // User data will be available in req.user if authenticated
-  next();
-};
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
 
-// Admin auth middleware
-const requireAdmin = (req, res, next) => {
-  if (req.isAuthenticated() && req.user.role === 'admin') {
+  if (!token) {
+    req.user = null;
     return next();
   }
-  res.status(403).json({ error: 'Admin access required' });
+
+  jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
+    if (err) {
+      req.user = null;
+      return next();
+    }
+
+    try {
+      const user = await User.findById(decoded.userId);
+      req.user = user || null;
+      next();
+    } catch (error) {
+      req.user = null;
+      next();
+    }
+  });
 };
 
-// Check authentication status
+// Admin auth middleware (JWT-based)
+const requireAdmin = (req, res, next) => {
+  // First verify JWT token
+  verifyToken(req, res, (err) => {
+    if (err) return; // verifyToken already sent response
+    
+    if (req.user && req.user.role === 'admin') {
+      return next();
+    }
+    
+    res.status(403).json({ 
+      error: 'Admin access required',
+      authenticated: !!req.user 
+    });
+  });
+};
+
+// Check authentication status (JWT-based)
 const checkAuthStatus = (req, res, next) => {
-  res.locals.isAuthenticated = req.isAuthenticated();
-  res.locals.user = req.user;
-  next();
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    res.locals.isAuthenticated = false;
+    res.locals.user = null;
+    return next();
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
+    if (err) {
+      res.locals.isAuthenticated = false;
+      res.locals.user = null;
+      return next();
+    }
+
+    try {
+      const user = await User.findById(decoded.userId);
+      res.locals.isAuthenticated = !!user;
+      res.locals.user = user;
+      next();
+    } catch (error) {
+      res.locals.isAuthenticated = false;
+      res.locals.user = null;
+      next();
+    }
+  });
+};
+
+// Legacy middleware wrapper (for backward compatibility)
+// DEPRECATED: Use verifyToken instead
+const requireAuth = (req, res, next) => {
+  console.warn('⚠️  requireAuth is deprecated. Use verifyToken instead.');
+  return verifyToken(req, res, next);
+};
+
+// Utility function to generate JWT token
+const generateToken = (user) => {
+  return jwt.sign(
+    { 
+      userId: user._id,
+      email: user.email,
+      name: user.name
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+};
+
+// Utility function to verify JWT token (for use in other modules)
+const verifyTokenSync = (token) => {
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
 };
 
 module.exports = {
   configureGoogleAuth,
-  requireAuth,
+  verifyToken,
   optionalAuth,
   requireAdmin,
-  checkAuthStatus
+  checkAuthStatus,
+  generateToken,
+  verifyTokenSync,
+  // Legacy exports (deprecated)
+  requireAuth
 };

@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Send, Mic, Heart, Star, TrendingUp, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
+import { api } from "@/utils/api";
 
 interface Message {
   id: string;
@@ -39,48 +40,19 @@ const Chat = () => {
   }, []);
 
   const loadChatHistory = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Using session-based auth, no need for Authorization header
-      const response = await fetch(`${API_BASE}/chat/history`, {
-        credentials: 'include', // Important for session cookies
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+  try {
+    setIsLoading(true);
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Redirect to login or show auth required message
-          setError('Please log in to use the chat feature');
-          return;
-        }
-        throw new Error('Failed to load chat history');
-      }
+    const data: any = await api.get('/chat/history');
 
-      const data = await response.json();
-      
-      if (data.success && data.messages.length > 0) {
-        const formattedMessages = data.messages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }));
-        setMessages(formattedMessages);
-      } else {
-        // Set initial welcome message if no history
-        setMessages([{
-          id: "welcome",
-          content: "Hello! I'm your CultureSense AI assistant. I can help you discover new cultural preferences, analyze your taste patterns, and recommend personalized content. What would you like to explore today?",
-          sender: "ai",
-          timestamp: new Date(),
-          suggestions: ["Analyze my music taste", "Find similar movies", "Discover new books", "Cultural trend analysis"]
-        }]);
-      }
-    } catch (error) {
-      console.error('Error loading chat history:', error);
-      setError('Failed to load chat history');
-      // Set fallback welcome message
+    if (data.success && data.messages.length > 0) {
+      const formattedMessages = data.messages.map((msg: any) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+      setMessages(formattedMessages);
+    } else {
+      // Set initial welcome message if no history
       setMessages([{
         id: "welcome",
         content: "Hello! I'm your CultureSense AI assistant. I can help you discover new cultural preferences, analyze your taste patterns, and recommend personalized content. What would you like to explore today?",
@@ -88,12 +60,33 @@ const Chat = () => {
         timestamp: new Date(),
         suggestions: ["Analyze my music taste", "Find similar movies", "Discover new books", "Cultural trend analysis"]
       }]);
-    } finally {
-      setIsLoading(false);
     }
-  };
 
-  const handleSendMessage = async (content: string) => {
+  } catch (error: any) {
+    console.error('Error loading chat history:', error);
+
+    if (error.message.includes('401')) {
+      setError('Please log in to use the chat feature');
+    } else {
+      setError('Failed to load chat history');
+    }
+
+    // Fallback message
+    setMessages([{
+      id: "welcome",
+      content: "Hello! I'm your CultureSense AI assistant. I can help you discover new cultural preferences, analyze your taste patterns, and recommend personalized content. What would you like to explore today?",
+      sender: "ai",
+      timestamp: new Date(),
+      suggestions: ["Analyze my music taste", "Find similar movies", "Discover new books", "Cultural trend analysis"]
+    }]);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
+
+const handleSendMessage = async (content: string) => {
   if (!content.trim()) return;
 
   const newMessage: Message = {
@@ -109,7 +102,6 @@ const Chat = () => {
   setError(null);
 
   try {
-    // Get user context for personalization
     const userContext = {
       currentPage: 'chat',
       timestamp: new Date().toISOString()
@@ -117,43 +109,14 @@ const Chat = () => {
 
     console.log('Sending message to API:', { message: content, context: userContext });
 
-    const response = await fetch(`${API_BASE}/chat/message`, {
-      method: 'POST',
-      credentials: 'include', // Important for session cookies
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: content,
-        context: userContext
-      })
+    const response :any = await api.post('/chat/message', {
+      message: content,
+      context: userContext
     });
-
-    console.log('Response status:', response.status);
-    console.log('Response headers:', response.headers);
-
-    // Handle different error statuses
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('API Error Response:', errorData);
-      
-      if (response.status === 401) {
-        setError('Please log in to continue the conversation');
-        return;
-      } else if (response.status === 400) {
-        setError(errorData.error || 'Invalid request. Please check your message.');
-        return;
-      } else if (response.status === 500) {
-        setError(errorData.error || 'Server error. Please try again in a moment.');
-        return;
-      } else {
-        throw new Error(`HTTP ${response.status}: ${errorData.error || 'Failed to send message'}`);
-      }
-    }
 
     const data = await response.json();
     console.log('API Response:', data);
-    
+
     if (data.success && data.message) {
       const aiResponse: Message = {
         ...data.message,
@@ -163,35 +126,42 @@ const Chat = () => {
     } else {
       throw new Error(data.error || 'Invalid response from server');
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error sending message:', error);
-    
-    let errorMessagei = 'Failed to send message. Please try again.';
-    
-    // Handle specific error types
+
+    let errorMessage = 'Failed to send message. Please try again.';
+
+    // Centralized apiCall already handles response.status codes, so rely on error.message
     if (error instanceof TypeError && error.message.includes('fetch')) {
-      errorMessagei = 'Network error. Please check your connection and try again.';
+      errorMessage = 'Network error. Please check your connection and try again.';
+    } else if (error.message.includes('401')) {
+      errorMessage = 'Please log in to continue the conversation';
+    } else if (error.message.includes('400')) {
+      errorMessage = 'Invalid request. Please check your message.';
+    } else if (error.message.includes('500')) {
+      errorMessage = 'Server error. Please try again in a moment.';
     } else if (error.message.includes('AI service')) {
-      errorMessagei = 'AI service is temporarily unavailable. Please try again later.';
+      errorMessage = 'AI service is temporarily unavailable. Please try again later.';
     } else if (error.message.includes('quota')) {
-      errorMessagei = 'Service is currently at capacity. Please try again in a few minutes.';
+      errorMessage = 'Service is currently at capacity. Please try again in a few minutes.';
     }
-    
-    setError(errorMessagei);
-    
-    // Add error message to chat
-    const errorMessage: Message = {
+
+    setError(errorMessage);
+
+    const fallbackResponse: Message = {
       id: (Date.now() + 1).toString(),
       content: "I apologize, but I'm having trouble connecting right now. Please try again in a moment.",
       sender: "ai",
       timestamp: new Date(),
       suggestions: ["Try again", "Refresh chat"]
     };
-    setMessages(prev => [...prev, errorMessage]);
+
+    setMessages(prev => [...prev, fallbackResponse]);
   } finally {
     setIsTyping(false);
   }
 };
+
 
   const handleSuggestionClick = (suggestion: string) => {
     handleSendMessage(suggestion);
@@ -199,15 +169,7 @@ const Chat = () => {
 
   const clearChat = async () => {
     try {
-      const response = await fetch(`${API_BASE}/chat/clear`, {
-        method: 'POST',
-        credentials: 'include', // Important for session cookies
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
+    await api.post(`/chat/clear`);
         setMessages([{
           id: "welcome",
           content: "Chat cleared! How can I help you explore culture today?",
@@ -215,7 +177,6 @@ const Chat = () => {
           timestamp: new Date(),
           suggestions: ["Analyze my music taste", "Find similar movies", "Discover new books", "Cultural trend analysis"]
         }]);
-      }
     } catch (error) {
       console.error('Error clearing chat:', error);
       setError('Failed to clear chat');

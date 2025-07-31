@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const User = require('../models/User');
-const { requireAuth, optionalAuth } = require('../config/auth');
+const { verifyToken, optionalAuth } = require('../config/auth');
 
 const router = express.Router();
 
@@ -96,7 +96,7 @@ router.get('/trending', optionalAuth, async (req, res) => {
   }
 });
 // Get discovery stats with preference insights
-router.get('/stats', optionalAuth, async (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const stats = {
       totalDiscoveries: 8470,
@@ -116,7 +116,6 @@ router.get('/stats', optionalAuth, async (req, res) => {
         averageShares: 12
       }
     };
-
     // Add user-specific stats if authenticated
     if (req.user) {
       const user = await User.findById(req.user._id);
@@ -260,7 +259,7 @@ router.get('/insights', optionalAuth, async (req, res) => {
 });
 
 // FIXED: Get personalized recommendations using available APIs and user preferences
-router.get('/personalized', requireAuth, async (req, res) => {
+router.get('/personalized', verifyToken, async (req, res) => {
   try {
     const { limit = 15, excludeViewed = true, preferenceWeight = 'high' } = req.query;
     
@@ -405,7 +404,7 @@ router.get('/personalized', requireAuth, async (req, res) => {
 });
 
 // Enhanced preferences route with validation
-router.post('/preferences', requireAuth, async (req, res) => {
+router.post('/preferences', verifyToken, async (req, res) => {
   try {
     const {
       categories,
@@ -458,7 +457,7 @@ router.post('/preferences', requireAuth, async (req, res) => {
 });
 
 // Get user preferences
-router.get('/preferences', requireAuth, async (req, res) => {
+router.get('/preferences', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     

@@ -1,11 +1,11 @@
 const express = require('express');
 const User = require('../models/User');
-const { requireAuth } = require('../config/auth');
+const { requireAuth, verifyToken } = require('../config/auth');
 
 const router = express.Router();
 
 // Get user dashboard data
-router.get('/dashboard', requireAuth, async (req, res) => {
+router.get('/dashboard', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-__v');
     
@@ -44,7 +44,7 @@ router.get('/dashboard', requireAuth, async (req, res) => {
 });
 
 // Get user's recommendation history
-router.get('/recommendations', requireAuth, async (req, res) => {
+router.get('/recommendations', verifyToken, async (req, res) => {
   try {
     const { page = 1, limit = 20, category, sortBy = 'createdAt' } = req.query;
     const skip = (page - 1) * limit;
@@ -94,7 +94,7 @@ router.get('/recommendations', requireAuth, async (req, res) => {
 });
 
 // Get user's favorites
-router.get('/favorites', requireAuth, async (req, res) => {
+router.get('/favorites', verifyToken, async (req, res) => {
   try {
     const { page = 1, limit = 20, category, sortBy = 'addedAt' } = req.query;
     const skip = (page - 1) * limit;
@@ -142,7 +142,7 @@ router.get('/favorites', requireAuth, async (req, res) => {
 });
 
 // Update user profile
-router.put('/profile', requireAuth, async (req, res) => {
+router.put('/profile', verifyToken, async (req, res) => {
   try {
     const { name, preferences, culturalProfile } = req.body;
     
@@ -194,7 +194,7 @@ router.put('/profile', requireAuth, async (req, res) => {
 });
 
 // Add recommendation to user's history
-router.post('/recommendations', requireAuth, async (req, res) => {
+router.post('/recommendations', verifyToken, async (req, res) => {
   try {
     const { 
       title, 
@@ -252,7 +252,7 @@ router.post('/recommendations', requireAuth, async (req, res) => {
 });
 
 // Get user analytics
-router.get('/analytics', requireAuth, async (req, res) => {
+router.get('/analytics', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     

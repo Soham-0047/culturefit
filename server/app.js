@@ -11,7 +11,7 @@ require('dotenv').config();
 
 // Import configurations
 const { connectDB, dbUtils } = require('./config/database');
-const { configureGoogleAuth, requireAuth, optionalAuth, checkAuthStatus } = require('./config/auth');
+const { configureGoogleAuth, requireAuth, optionalAuth, checkAuthStatus, verifyToken } = require('./config/auth');
 const User = require('./models/User');
 
 // Import routes
@@ -120,21 +120,21 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 //   }
 // }));
 
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI,
-    touchAfter: 24 * 3600 // lazy session update
-  }),
-  cookie: {
-    secure: false, // Works with proxy
-    httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    sameSite: 'lax' // Perfect for same-origin (proxy)
-  }
-}));
+// app.use(session({
+//   secret: process.env.SESSION_SECRET,
+//   resave: false,
+//   saveUninitialized: false,
+//   store: MongoStore.create({
+//     mongoUrl: process.env.MONGODB_URI,
+//     touchAfter: 24 * 3600 // lazy session update
+//   }),
+//   cookie: {
+//     secure: false, // Works with proxy
+//     httpOnly: true,
+//     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+//     sameSite: 'lax' // Perfect for same-origin (proxy)
+//   }
+// }));
 
 
 // app.use(session({
@@ -155,7 +155,7 @@ app.use(session({
 
 // Initialize Passport
 app.use(passport.initialize());
-app.use(passport.session());
+// app.use(passport.session());
 
 // Configure Google OAuth
 configureGoogleAuth();
@@ -171,11 +171,17 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+// app.use('/api/auth', authRoutes);
+// app.use('/api/discover', optionalAuth, discoverRoutes);
+// app.use('/api/user', requireAuth, userRoutes);
+// app.use('/api/chat', chatRoutes);
+// app.use('/api/ai-insights', requireAuth, aiInsightsRoutes); // NEW LINE
+
 app.use('/api/auth', authRoutes);
-app.use('/api/discover', optionalAuth, discoverRoutes);
-app.use('/api/user', requireAuth, userRoutes);
+app.use('/api/discover', discoverRoutes); // Remove optionalAuth, handle in individual routes
+app.use('/api/user', verifyToken, userRoutes); // Use JWT verification
 app.use('/api/chat', chatRoutes);
-app.use('/api/ai-insights', requireAuth, aiInsightsRoutes); // NEW LINE
+app.use('/api/ai-insights', verifyToken, aiInsightsRoutes);
 
 
 // Error handling middleware
