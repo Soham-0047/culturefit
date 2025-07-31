@@ -120,38 +120,38 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 //   }
 // }));
 
-// app.use(session({
-//   secret: process.env.SESSION_SECRET,
-//   resave: false,
-//   saveUninitialized: true, // Changed to true for testing
-//   store: MongoStore.create({
-//     mongoUrl: process.env.MONGODB_URI,
-//     touchAfter: 24 * 3600
-//   }),
-//   cookie: {
-//     secure: false, // Set to false temporarily for testing
-//     httpOnly: true,
-//     maxAge: 1000 * 60 * 60 * 24 * 7,
-//     sameSite: 'lax' // Changed to lax for testing
-//   }
-// }));
-
-
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({
     mongoUrl: process.env.MONGODB_URI,
-    touchAfter: 24 * 3600
+    touchAfter: 24 * 3600 // lazy session update
   }),
   cookie: {
-    secure: true, // Now both domains are HTTPS
+    secure: false, // Works with proxy
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    sameSite: 'none' // Required for cross-site cookies
+    sameSite: 'lax' // Perfect for same-origin (proxy)
   }
 }));
+
+
+// app.use(session({
+//   secret: process.env.SESSION_SECRET,
+//   resave: false,
+//   saveUninitialized: false,
+//   store: MongoStore.create({
+//     mongoUrl: process.env.MONGODB_URI,
+//     touchAfter: 24 * 3600
+//   }),
+//   cookie: {
+//     secure: true, // Now both domains are HTTPS
+//     httpOnly: true,
+//     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+//     sameSite: 'none' // Required for cross-site cookies
+//   }
+// }));
 
 // Initialize Passport
 app.use(passport.initialize());
