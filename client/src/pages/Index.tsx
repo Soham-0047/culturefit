@@ -96,7 +96,7 @@ const Index = () => {
         <div className="max-w-6xl mx-auto text-center">
           <Badge className="mb-8 pill-button bg-white/10 text-white border-white/20 animate-fade-in-scale backdrop-blur-md">
             <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
-            Powered by Multi-AI Intelligence
+            Powered by Qloo's Taste AI™
           </Badge>
           
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold font-poppins mb-8 leading-tight">
